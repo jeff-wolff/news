@@ -1,95 +1,85 @@
-import Image from 'next/image'
-import styles from './page.module.css'
+import Image from 'next/image';
+import styles from './page.module.css';
 
 export default function Home() {
+  const news = require('gnews');
+
+  const extractUrls = (content) => {
+    const regex = /<a\s+(?:[^>]*?\s+)?href=(["'])(.*?)\1/g;
+    const matches = content.matchAll(regex);
+    const urls = [];
+    for (const match of matches) {
+      urls.push(match[2]);
+    }
+    return urls;
+  };
+
+  const main = async () => {
+    let storyArray = [];
+    console.log('------------------ start ------------------');
+
+    // Retrieve top 10 breaking news stories for USA on Google News (5 articles for each story)
+    const heads = await news.headlines({ n: 10 });
+
+    for (const item of heads) {
+      const itemSnippets = item.contentSnippet.split('\n');
+      const urls = extractUrls(item.content);
+
+      const snippetsArray = itemSnippets
+        .filter((snippet) => snippet !== 'View Full Coverage on Google News')
+        .map((snippet, index) => {
+          const sanitizedSnippet = snippet.replace(/\s{2,}.*$/, '');
+          const href = urls[index % urls.length];
+          const source = snippet.replace(sanitizedSnippet, '').trim();
+          return { snippet: sanitizedSnippet, href, source };
+        });
+
+      const stories = [];
+      for (let i = 0; i < snippetsArray.length; i += 5) {
+        const story = snippetsArray.slice(i, i + 5);
+        stories.push(story);
+      }
+
+      storyArray.push(...stories);
+    }
+
+    console.log(storyArray);
+
+    console.log('------------------ end ------------------');
+    return storyArray;
+  };
+
   return (
     <main className={styles.main}>
-      <div className={styles.description}>
-        <p>
-          Get started by editing&nbsp;
-          <code className={styles.code}>src/app/page.js</code>
-        </p>
-        <div>
-          <a
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className={styles.vercelLogo}
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
-      </div>
+      <Image
+        src="/next.svg"
+        alt="News App Logo"
+        className={styles.logo}
+        width={100}
+        height={24}
+        priority
+      />
+      <h1>News App</h1>
 
-      <div className={styles.center}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className={styles.grid}>
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Docs <span>-&gt;</span>
-          </h2>
-          <p>Find in-depth information about Next.js features and API.</p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Learn <span>-&gt;</span>
-          </h2>
-          <p>Learn about Next.js in an interactive course with&nbsp;quizzes!</p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Templates <span>-&gt;</span>
-          </h2>
-          <p>Explore the Next.js 13 playground.</p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Deploy <span>-&gt;</span>
-          </h2>
-          <p>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
+      <div>
+        {main().then((storyArray) => (
+          storyArray.map((story, index) => (
+            <div key={index}>
+              <h2>Story {index + 1}</h2>
+              <ul>
+                {story.map((snippet, i) => (
+                  <li key={i}>
+                    <a href={snippet.href} target="_blank" rel="noopener noreferrer">
+                      {snippet.snippet}
+                    </a>
+                    <span>{snippet.source}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        ))}
       </div>
     </main>
-  )
+  );
 }
