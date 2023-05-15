@@ -1,5 +1,7 @@
 import Image from 'next/image';
 import styles from './page.module.css';
+import crawlArticle from './api/crawl-article';
+
 
 export default function Home() {
   const news = require('gnews');
@@ -45,6 +47,26 @@ export default function Home() {
 
     console.log(storyArray);
 
+    const fetchNews = async () => {
+      try {
+        const urls = ['https://abcnews.go.com/US/7-injured-shooting-yuma-arizona-gathering-police/story?id=99313241',
+        'https://www.foxnews.com/us/arizona-border-city-sees-7-people-shot-suspect-large-report',
+        'https://www.cnn.com/2023/05/14/us/2-dead-5-injured-yuma-arizona-shooting/index.html']; 
+        const articles = [];
+
+        for (const url of urls) {
+          const article = await crawlArticle(url);
+          articles.push(article);
+        }
+        console.log(articles);
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    };
+    fetchNews();
+
+    
+    
     console.log('------------------ end ------------------');
     return storyArray;
   };
