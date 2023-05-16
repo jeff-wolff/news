@@ -10,3 +10,23 @@
 .logo {
   /* background-color: red; */
 }
+
+.stories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+}
+.stories > div {
+  width: calc(25% - 2rem);
+}
+.stories ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.stories li {
+  margin-bottom: 2.5rem;
+}
+.stories a {
+  font-size: 1.5rem;
+}
