@@ -27,6 +27,11 @@
 .stories li {
   margin-bottom: 2.5rem;
 }
+
 .stories a {
   font-size: 1.5rem;
+}
+
+.stories li:first-child a {
+  font-size: 2rem;
 }

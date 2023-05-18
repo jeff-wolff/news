@@ -1,13 +1,55 @@
 import news from 'gnews';
 
-const extractUrls = (content) => {
-  const regex = /<a\s+(?:[^>]*?\s+)?href=(["'])(.*?)\1/g;
-  const matches = content.matchAll(regex);
-  const urls = [];
-  for (const match of matches) {
-    urls.push(match[2]);
+export const fetchStories = async () => {
+  const storyMap = {};
+
+  // Retrieve top 10 breaking news stories for USA on Google News (up to 5 articles for each story)
+  const heads = await news.headlines({ n: 10 });
+
+  for (const item of heads) {
+    const contentSnippet = item.contentSnippet;
+    if (!storyMap[contentSnippet]) {
+      storyMap[contentSnippet] = [];
+    }
+
+    const itemSnippets = contentSnippet.split('\n');
+    const urls = extractUrls(item.content);
+
+
+    const resolvedSnippetsArray = await Promise.all(
+      itemSnippets
+        .filter((snippet) => snippet !== 'View Full Coverage on Google News')
+        .map(async (snippet, index) => {
+          const sanitizedSnippet = snippet.replace(/\s{2,}.*$/, '');
+          const href = urls[index % urls.length];
+          let source = snippet.replace(sanitizedSnippet, '').trim();
+          source = source.replace(/View Full Coverage on Google News/g, '').trim();
+          const resolvedHref = await resolveLink(href);
+          
+          // Sanitize the end of the snippet by removing everything after the dash "-"
+          const sanitizedSnippetEnd = sanitizedSnippet.split(' - ')[0];
+          
+          if (sanitizedSnippetEnd === '' || source === '') {
+            return null;
+          }
+
+          // console.log("\n")
+          // console.log(`Title: ${sanitizedSnippetEnd}\nURL: ${resolvedHref}\nSource: ${source}`);
+          // console.log("\n")
+      
+
+          return { snippet: sanitizedSnippetEnd, href: resolvedHref, source };
+        })
+      );
+
+    storyMap[contentSnippet].push(
+      ...resolvedSnippetsArray.filter((snippet) => snippet !== null)
+    );
   }
-  return urls;
+
+  const storyArray = Object.values(storyMap);
+  console.log(storyArray);
+  return storyArray;
 };
 
 const resolveLink = async (googleNewsLink) => {
@@ -35,49 +77,12 @@ const resolveLink = async (googleNewsLink) => {
   }
 };
 
-export const fetchStories = async () => {
-  const storyMap = {};
-
-  // Retrieve top 10 breaking news stories for USA on Google News (5 articles for each story)
-  const heads = await news.headlines({ n: 10 });
-
-  for (const item of heads) {
-    const contentSnippet = item.contentSnippet;
-    if (!storyMap[contentSnippet]) {
-      storyMap[contentSnippet] = [];
-    }
-
-    const itemSnippets = contentSnippet.split('\n');
-    const urls = extractUrls(item.content);
-
-    // console.log(contentSnippet);
-
-    const resolvedSnippetsArray = await Promise.all(
-
-    itemSnippets
-      .filter((snippet) => {
-        return snippet !== 'View Full Coverage on Google News';
-      })      
-      .map(async (snippet, index) => {
-        const sanitizedSnippet = snippet.replace(/\s{2,}.*$/, '');
-        const href = urls[index % urls.length];
-        let source = snippet.replace(sanitizedSnippet, '').trim();
-        source = source.replace(/View Full Coverage on Google News/g, '').trim();
-        const resolvedHref = await resolveLink(href);
-
-        if (sanitizedSnippet === '' || source === '') {
-          return null;
-        }
-
-        return { snippet: sanitizedSnippet, href: resolvedHref, source };
-      })
-    );
-
-    storyMap[contentSnippet].push(
-      ...resolvedSnippetsArray.filter((snippet) => snippet !== null)
-    );
+const extractUrls = (content) => {
+  const regex = /<a\s+(?:[^>]*?\s+)?href=(["'])(.*?)\1/g;
+  const matches = content.matchAll(regex);
+  const urls = [];
+  for (const match of matches) {
+    urls.push(match[2]);
   }
-
-  const storyArray = Object.values(storyMap);
-  return storyArray;
+  return urls;
 };

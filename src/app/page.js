@@ -11,8 +11,9 @@ export default function Home() {
   const renderNewsArticles = (articles) => {
     return articles.map((article, index) => (
         <div key={index}>
-        {/* <h4>Story {article.storyIndex}</h4> Add the story index */}
-        <h2>{article.title} - {article.source}</h2>
+        <h4>Story {article.storyIndex}</h4>
+        <h2>{article.title}</h2>
+        <p>Source: {article.source}</p>
         {article.content && <p>{article.content}</p>}
         </div>
     ));
@@ -32,8 +33,9 @@ export default function Home() {
                 {story.map((snippet, i) => (
                   <li key={i}>
                     <a href={snippet.href} target="_blank" rel="noopener noreferrer">
-                      {snippet.snippet} - {snippet.source}
+                      {snippet.snippet}
                     </a>
+                    <p>Source: {snippet.source}</p>
                   </li>
                 ))}
               </ul>

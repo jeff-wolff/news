@@ -1,51 +1,14 @@
 import { crawlArticle } from './crawl-article';
 import { fetchStories } from './fetch-stories';
+// import { openai } from 'openai';
 
-const createSummary = async (articles) => {
-  const summaries = [];
+// Set your OpenAI API key
+const OPENAI_API_KEY = 'YOUR_OPENAI_API_KEY';
 
-  for (const story of articles) {
-    const prompt = `Create a bullet abstractive summary based on this news coverage.\n
-    Make sure the third bullet main point has the most important information in this story.\n
-    Write in a concise style, but don't abbreviate or leave out too much detail.\n
-    Cover the entire story based on the articles, and be as unbiased as possible.\n
-    Make sure you include the end of the story.\n
-    Capture the essential information without excessive copying.\n
-    Use abstractive summarization techniques.\n\n
-    DO NOT EXCEED 1 SENTENCE AND 25 WORDS PER BULLET POINT!\n
-    WRITE IN THE STYLE OF ASSOCIATED PRESS\n\n`;
-      
-    const storyContent = story.map((article) => `${article.title}\n\n${article.content}`).join('\n\n\n');
-
-    const storyPrompt = `${prompt}${storyContent}`;
-
-    setTimeout(() => {
-      console.log('\n\n\n\n', storyPrompt);
-    }, 900);
-    
-    // TODO: Import OpenAI get OpenAI API key for summary generation
-    // try {
-    //   // Make a request to OpenAI API for summary generation
-    //   const response = await openai.complete({
-    //     engine: 'text-davinci-003', // Choose the language model engine
-    //     prompt: storyPrompt,
-    //     maxTokens: 100, // Define the maximum number of tokens in the generated summary
-    //     temperature: 0.5, // Adjust the temperature to control the randomness of the output
-    //     n: 6, // Limit the number of bullet points to 6
-    //     stop: ['\n'], // Set the stop sequence to terminate each bullet point
-    //   });
-
-    //   if (response.choices && response.choices.length > 0) {
-    //     const bulletPoints = response.choices[0].text.trim().split('\n');
-    //     summaries.push({ storyIndex: story[0].storyIndex, bullets: bulletPoints });
-    //   }
-    // } catch (error) {
-    //   console.error('Error generating summary:', error);
-    // }
-  }
-
-  return summaries;
-};
+// Configure the OpenAI package with your API key
+// openai.configure({
+//   apiKey: OPENAI_API_KEY,
+// });
 
 export const fetchNews = async () => {
   try {
@@ -53,6 +16,7 @@ export const fetchNews = async () => {
 
     const storyArray = await fetchStories();
     const articles = [];
+    const excludeSources = ['New York Post','The Daily Beast','Slate']; // Optional
 
     for (let storyIndex = 0; storyIndex < storyArray.length; storyIndex++) {
       const story = storyArray[storyIndex];
@@ -61,8 +25,13 @@ export const fetchNews = async () => {
       for (const snippet of story) {
         const article = await crawlArticle(snippet.href);
         article.source = snippet.source; // Store the source in the article object
+        console.log(article.source)
         article.storyIndex = storyIndex + 1; // Add the story index to the article
-        storyArticles.push(article);
+        // console.log(article)
+        // Exclude sources
+        if (!excludeSources.includes(article.source)) {
+          storyArticles.push(article);
+        }
       }
 
       articles.push(storyArticles);
@@ -87,6 +56,12 @@ export const fetchNews = async () => {
 
     const flattenedArticles = articles.flat(); // Flatten the nested array
 
+    // Remove articles with null title or content
+    const filteredArticles = flattenedArticles.filter(
+      (article) => article.title !== null && article.content !== null
+    );
+    
+
     const endTime = new Date(); // Record the end time
     const elapsedTime = endTime - startTime; // Calculate the elapsed time in milliseconds
 
@@ -96,10 +71,67 @@ export const fetchNews = async () => {
     setTimeout(() => {
       console.log('\n\nElapsed Time:', elapsedSecondsFixed, 'seconds');
     }, 1000);
-
+    console.log(articles);
     return flattenedArticles;
   } catch (error) {
     console.error('Error:', error);
     return []; // Return an empty array in case of error
   }
+};
+
+
+const createSummary = async (articles) => {
+  const summaries = [];
+
+  for (const story of articles) {
+    const prompt = `Create a concise bullet summary of the news stories from various sources.
+
+    Tips:
+    Clarify the names of all subjects mentioned.
+    Comment on all facts
+    Be concise and unbiased.
+
+    Writing Format:
+    Write in bullet points ONLY.
+    Write in a journalistic AP style (inverted pyramid).
+    Start with all the main details and subjects.
+    Continue with the most important facts.
+    Make sure you include all the facts.
+    Finally, tell the rest of the story in the remaining bullets.
+    Don't abbreviate words unless you've already stated what it means.
+    In total, write 5 bullet points (250 tokens or less).
+
+    Respond only with the bullet point list.
+    \n`;
+      
+    const storyContent = story.map((article) => `${article.title}\n\n${article.content}`).join('\n\n\n');
+
+    const storyPrompt = `${prompt} News Coverage: """${storyContent}"""`;
+
+    setTimeout(() => {
+      console.log('\n\n\n\n', storyPrompt);
+    }, 900);
+    
+    // TODO: Import OpenAI get OpenAI API key for summary generation
+    // try {
+    //   // Make a request to OpenAI API for summary generation
+    //   const response = await openai.complete({
+    //     engine: 'text-davinci-003', // Choose the language model engine
+    //     prompt: storyPrompt,
+    //     maxTokens: 250, // Define the maximum number of tokens in the generated summary
+    //     temperature: 0, // Adjust the temperature to control the randomness of the output
+    //     n: 1, 
+    //     stop: ['\n'], // Set the stop sequence to terminate each bullet point
+    //   });
+
+    //   if (response.choices && response.choices.length > 0) {
+    //     const bulletPoints = response.choices[0].text.trim().split('\n');
+    //     summaries.push({ storyIndex: story[0].storyIndex, bullets: bulletPoints });
+    //   }
+    // } catch (error) {
+    //   console.error('Error generating summary:', error);
+    // }
+  }
+
+  return summaries;
 };
