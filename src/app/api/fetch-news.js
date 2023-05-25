@@ -16,7 +16,7 @@ export const fetchNews = async () => {
 
     const storyArray = await fetchStories();
     const articles = [];
-    const excludeSources = ['New York Post','The Daily Beast','Slate']; // Optional
+    const excludeSources = ['New York Post','The Daily Beast','The Daily Mail','Slate']; // Optional
 
     for (let storyIndex = 0; storyIndex < storyArray.length; storyIndex++) {
       const story = storyArray[storyIndex];
@@ -25,11 +25,20 @@ export const fetchNews = async () => {
       for (const snippet of story) {
         const article = await crawlArticle(snippet.href);
         article.source = snippet.source; // Store the source in the article object
-        console.log(article.source)
         article.storyIndex = storyIndex + 1; // Add the story index to the article
+        console.log('---');
+        console.log(`Story ${article.storyIndex}:`);
+        console.log(`Title - ${article.title}`);
+        console.log(`Source - ${article.source}`)
+        console.log(article.content ? `-> ${article.content.substring(0, 280).trim().replace(/[^\w\s]*$/, '')}…` : 'Article content is null.');
+        console.log('---');
         // console.log(article)
-        // Exclude sources
-        if (!excludeSources.includes(article.source)) {
+        // Exclude sources and check if the title and content are not null
+        if (!excludeSources.includes(article.source) && article.title !== null && article.content !== null) {
+          // Skip opinion articles 
+          if (article.title.startsWith('Opinion:') || article.title.startsWith('Opinion |') || article.title.endsWith('| Opinion')) {
+            continue;
+          }
           storyArticles.push(article);
         }
       }
@@ -56,11 +65,6 @@ export const fetchNews = async () => {
 
     const flattenedArticles = articles.flat(); // Flatten the nested array
 
-    // Remove articles with null title or content
-    const filteredArticles = flattenedArticles.filter(
-      (article) => article.title !== null && article.content !== null
-    );
-    
 
     const endTime = new Date(); // Record the end time
     const elapsedTime = endTime - startTime; // Calculate the elapsed time in milliseconds
@@ -71,7 +75,7 @@ export const fetchNews = async () => {
     setTimeout(() => {
       console.log('\n\nElapsed Time:', elapsedSecondsFixed, 'seconds');
     }, 1000);
-    console.log(articles);
+    // console.log(articles);
     return flattenedArticles;
   } catch (error) {
     console.error('Error:', error);
@@ -84,32 +88,35 @@ const createSummary = async (articles) => {
   const summaries = [];
 
   for (const story of articles) {
-    const prompt = `Create a concise bullet summary of the news stories from various sources.
+    const prompt = `Write a bullet point list summary of the following news coverage. News coverage is gathered from various sources.
 
-    Tips:
-    Clarify the names of all subjects mentioned.
-    Comment on all facts
-    Be concise and unbiased.
-
-    Writing Format:
-    Write in bullet points ONLY.
+    Writing Format & Style:
     Write in a journalistic AP style (inverted pyramid).
-    Start with all the main details and subjects.
-    Continue with the most important facts.
-    Make sure you include all the facts.
-    Finally, tell the rest of the story in the remaining bullets.
+    Write in bullet points ONLY.
+    Change wording to not plagiarize from the news coverage.
+    Be concise and unbiased. 
     Don't abbreviate words unless you've already stated what it means.
-    In total, write 5 bullet points (250 tokens or less).
+    Clarify the names of all subjects mentioned.
+    Mention all the most important facts.
+    Include the most important facts in the first 5 bullet points.
+    140 characters or less per bullet point.
+    In total, write 5 bullet points.
 
     Respond only with the bullet point list.
     \n`;
-      
-    const storyContent = story.map((article) => `${article.title}\n\n${article.content}`).join('\n\n\n');
 
-    const storyPrompt = `${prompt} News Coverage: """${storyContent}"""`;
+const titlePrompt = `Write a 10 token news headline based off the provided news headlines and headline format. Using mostly lowercase words. Capitalize pronouns. Capitalize first word. Name important subjects.\n\n
+Headline Format: "Uvalde victim's mother perseveres through teaching, connecting with daughter's memory", "In Panama, legal rights given to sea turtles, boosting the 'rights of nature' movement", "Head of Russian private army Wagner says more than 20,000 of his troops died in Bakhmut battle"
+    \n\n`;  
+    
+    const storyContent = story.map((article) => `${article.content}`).join('\n\n\n'); 
+    const storyTitleContent = story.map((article) => `${article.title}`).join('\n'); 
+
+    const storyPrompt = `${prompt} News Coverage: """${storyContent}"""\n\n\n\n`;
+    const storyTitlePrompt = `${titlePrompt} Headlines: """${storyTitleContent}"""`;
 
     setTimeout(() => {
-      console.log('\n\n\n\n', storyPrompt);
+      console.log('\n\n\n\n', storyPrompt, '\n\n', storyTitlePrompt);
     }, 900);
     
     // TODO: Import OpenAI get OpenAI API key for summary generation
@@ -135,3 +142,4 @@ const createSummary = async (articles) => {
 
   return summaries;
 };
+

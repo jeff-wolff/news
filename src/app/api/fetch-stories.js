@@ -48,7 +48,7 @@ export const fetchStories = async () => {
   }
 
   const storyArray = Object.values(storyMap);
-  console.log(storyArray);
+  // console.log(storyArray);
   return storyArray;
 };
 
