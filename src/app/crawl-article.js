@@ -1,4 +1,4 @@
-import { customLog } from '../util/custom-log';
+const { customLog } = require('./custom-log');
 const { JSDOM } = require('jsdom');
 const { Readability } = require('@mozilla/readability');
 const { YoutubeTranscript, YoutubeTranscriptError } = require('youtube-transcript');
@@ -7,14 +7,14 @@ const sanitizeHtml = require('sanitize-html');
 
 const maxCharacters = 10000; // Maximum allowed character count per article
 
-export const crawlArticle = async (url) => { 
+exports.crawlArticle = async (url) => { 
     // Crawl Washington Post
     if (url.includes('washingtonpost.com')) {
       customLog('CRAWLING WASHINGTON POST ARTICLE: ' + url, 'magenta');
       // TODO: Add rate limit.
-      customLog('NOT CRAWLING WASHINGTON POST, NEED TO RATE LIMIT', 'yellow');
-      return { title: null, content: null };
-      // return await getArticleData(url); //, /(grid-body|luf-content-well)/
+      // customLog('NOT CRAWLING WASHINGTON POST, NEED TO RATE LIMIT', 'yellow');
+      // return { title: null, content: null };
+      return await getArticleData(url); //, /(grid-body|luf-content-well)/
     }
     // Crawl Bloomberg    
     if (url.includes('bloomberg.com')) {
@@ -26,9 +26,9 @@ export const crawlArticle = async (url) => {
     }
     // Crawl WSJ    
     if (url.includes('wsj.com')) {
-      customLog('NOT CRAWLING WSJ ARTICLE, CANNOT BYBALL PAYWALL NEED AUTHENTICATION: ' + url, 'blue');
-      return { title: null, content: null };
-      // return await getArticleData(url, '/css-k3zb6l-Paragraph/'); 
+      customLog('CRAWLING WSJ ARTICLE, CANNOT BYBALL PAYWALL NEED AUTHENTICATION: ' + url, 'blue');
+      // return { title: null, content: null };
+      return await getArticleData(url, '/css-k3zb6l-Paragraph/'); 
     }
     // Crawl YouTube Transcriptions
     if (url.includes('youtube.com')) {
@@ -38,7 +38,7 @@ export const crawlArticle = async (url) => {
     // For other websites, continue with JSDOM.fromURL
     customLog('CRAWLING URL: ' + url, 'green');    
 
-    let articleTitle, articleContent;
+    let articleTitle, articleContent, faviconUrl;
 
     try {
       const dom = await JSDOM.fromURL(url, { referrer: 'https://www.google.com/' });
@@ -49,6 +49,9 @@ export const crawlArticle = async (url) => {
       articleTitle = article.title;
       articleContent = article.textContent.replace(/\n/g, '').replace(/\s\s+/g, ' ').trim();      
 
+      // Fetch the favicon URL
+      faviconUrl = await fetchFavicon(url);
+
       // Sanitize Fox News articles to remove internal links
       if (url.includes('foxnews.com')) {
         articleContent = cleanFoxNewsArticleContent(articleContent);
@@ -57,7 +60,11 @@ export const crawlArticle = async (url) => {
       articleContent = truncateContent(articleContent, maxCharacters);
 
     } catch (error) {
-      console.error('JSDOM or Readability Error:', error);
+      if (error.message.includes("Error: Resource was not loaded. Status: 403")) {
+        console.error("JSDOM or Readability Error: Resource was not loaded. Status: 403");
+      } else  {
+        console.error('JSDOM or Readability Error:', error);
+      }
       
       try {
         console.log('Trying Puppeteer to crawl..');
@@ -69,7 +76,7 @@ export const crawlArticle = async (url) => {
       }
     }
     // console.log(articleTitle+'\n'+articleContent);
-    return { title: articleTitle, content: articleContent };
+    return { title: articleTitle, content: articleContent, favicon: faviconUrl };
 };
 
 // Helper function to crawl articles from specific websites
@@ -97,6 +104,9 @@ const getArticleData = async (url, selector) => {
   let content = await page.content();
   // Extract the title from the HTML content
   const title = await page.$eval('title', (element) => element.textContent);
+
+  // Fetch the favicon URL
+  const faviconUrl = await fetchFavicon(url);
 
   await browser.close();
 
@@ -147,7 +157,7 @@ const getArticleData = async (url, selector) => {
 
 
   // console.log(title + '\n' + textContent);
-  return { title, content: textContent };
+  return { title, content: textContent, favicon: faviconUrl };
 };
 
 // Helper function to get YouTube transcription
@@ -163,16 +173,18 @@ const getYouTubeTranscription = async (url) => {
 
     // Remove hidden line breaks
     content = content.replace(/\r?\n|\r/g, ' ');
+    
+    content = truncateContent(content, maxCharacters);
 
 
     const dom = await JSDOM.fromURL(url, { referrer: 'https://www.google.com/', resources: 'usable' });
     const titleElement = dom.window.document.querySelector('title');
     const title = titleElement ? titleElement.textContent.trim() : 'YouTube';
 
-    content = truncateContent(content, maxCharacters);
+    const favicon = 'https://www.youtube.com/s/desktop/339bae71/img/favicon_32x32.png';
 
     // console.log(title);
-    return { title: title, content };
+    return { title: title, content, favicon };
   } catch (error) {
     if (error instanceof YoutubeTranscriptError) {
       customLog('TRANSCRIPT IS DISABLED FOR THIS YOUTUBE VIDEO: ' + error, 'yellow');
@@ -218,4 +230,31 @@ const truncateContent = (content, maxCharacters) => {
     return content.slice(0, maxCharacters) + "...";
   }
   return content;
+};
+
+// Helper function to fetch the favicon URL
+const fetchFavicon = async (url) => {
+  try {
+    const dom = await JSDOM.fromURL(url);
+    const faviconElement = dom.window.document.querySelector('link[rel="icon"], link[rel="shortcut icon"]');
+    
+    if (faviconElement) {
+      const faviconUrl = new URL(faviconElement.href, url).href;
+      return faviconUrl;
+    }
+
+    // Return null if favicon couldn't be found
+    return null;
+  } catch (error) {
+    if (error.code === "CSSPARSEERROR") {
+      console.error("Error parsing CSS stylesheet");
+    } else if (error.code === "ENOTFOUND") {
+      console.error("Error fetching favicon: DNS resolution failed for the URL:", url);
+    } else if (error.message.includes("Error: Resource was not loaded. Status: 403")) {
+      console.error("Error fetching favicon: Resource was not loaded. Status: 403");
+    } else {
+      console.error("Error fetching favicon:", error);
+    }
+    return null;
+  }
 };

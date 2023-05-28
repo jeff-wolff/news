@@ -1,12 +1,12 @@
-import news from 'gnews';
-const { JSDOM } = require('jsdom');
+const fetch = require('cross-fetch').default;
+const news = require('gnews');
 
-export const fetchStories = async () => {
+exports.fetchStories = async () => {
   const storyMap = {};
 
   // Retrieve top 10 breaking news stories for USA on Google News (up to 5 articles for each story)
-  const heads = await news.headlines({ n: 10 });
-  
+  const heads = await news.headlines({ n: 5 });
+
   for (const item of heads) {
     const contentSnippet = item.contentSnippet;
     if (!storyMap[contentSnippet]) {
@@ -15,7 +15,7 @@ export const fetchStories = async () => {
     
     const itemSnippets = contentSnippet.split('\n');
     const urls = extractUrls(item.content);
-
+    const pubDate = item.pubDate;
 
     const resolvedSnippetsArray = await Promise.all(
       itemSnippets
@@ -34,14 +34,15 @@ export const fetchStories = async () => {
             return null;
           }
           // Fetch the source favicon
-          const favicon = await fetchFavicon(resolvedHref);
+          // const favicon = await fetchFavicon(resolvedHref);
 
           // console.log("\n")
           // console.log(`Title: ${sanitizedSnippetEnd}\nURL: ${resolvedHref}\nSource: ${source}`);
           // console.log("\n")
+          
       
 
-          return { snippet: sanitizedSnippetEnd, href: resolvedHref, source, favicon };
+          return { snippet: sanitizedSnippetEnd, href: resolvedHref, source, pubDate };
         })
       );
 
@@ -86,26 +87,5 @@ const extractUrls = (content) => {
   return matches.map((match) => match[2]);
 };
 
-const fetchFavicon = async (url) => {
-  try {
-    const dom = await JSDOM.fromURL(url);
-    const faviconElement = dom.window.document.querySelector('link[rel="icon"], link[rel="shortcut icon"]');
-    
-    if (faviconElement) {
-      const faviconUrl = new URL(faviconElement.href, url).href;
-      return faviconUrl;
-    }
 
-    // Return null if favicon couldn't be found
-    return null;
-  } catch (error) {
-    if (error.code === "CSSPARSEERROR") {
-      console.error("Error parsing CSS stylesheet:", error);
-    } else if (error.code === "ENOTFOUND") {
-      console.error("Error fetching favicon: DNS resolution failed for the URL:", url);
-    } else {
-      console.error("Error fetching favicon:", error);
-    }
-    return null;
-  }
-};
+
