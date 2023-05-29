@@ -1,20 +1,20 @@
-import { customLog } from '../util/custom-log';
+const { customLog } = require('./custom-log');
 const { JSDOM } = require('jsdom');
 const { Readability } = require('@mozilla/readability');
 const { YoutubeTranscript, YoutubeTranscriptError } = require('youtube-transcript');
 const puppeteer = require('puppeteer');
 const sanitizeHtml = require('sanitize-html');
 
-const maxCharacters = 10000; // Maximum allowed character count per article
+const maxCharacters = 11000; // Maximum allowed character count per article
 
-export const crawlArticle = async (url) => { 
+const crawlArticle = async (url) => { 
     // Crawl Washington Post
     if (url.includes('washingtonpost.com')) {
       customLog('CRAWLING WASHINGTON POST ARTICLE: ' + url, 'magenta');
       // TODO: Add rate limit.
-      customLog('NOT CRAWLING WASHINGTON POST, NEED TO RATE LIMIT', 'yellow');
-      return { title: null, content: null };
-      // return await getArticleData(url); //, /(grid-body|luf-content-well)/
+      // customLog('NOT CRAWLING WASHINGTON POST, NEED TO RATE LIMIT', 'yellow');
+      // return { title: null, content: null };
+      return await getArticleData(url); //, /(grid-body|luf-content-well)/
     }
     // Crawl Bloomberg    
     if (url.includes('bloomberg.com')) {
@@ -26,9 +26,9 @@ export const crawlArticle = async (url) => {
     }
     // Crawl WSJ    
     if (url.includes('wsj.com')) {
-      customLog('NOT CRAWLING WSJ ARTICLE, CANNOT BYBALL PAYWALL NEED AUTHENTICATION: ' + url, 'blue');
-      return { title: null, content: null };
-      // return await getArticleData(url, '/css-k3zb6l-Paragraph/'); 
+      customLog('CRAWLING WSJ ARTICLE, CANNOT BYBALL PAYWALL NEED AUTHENTICATION: ' + url, 'blue');
+      // return { title: null, content: null };
+      return await getArticleData(url, '/css-k3zb6l-Paragraph/'); 
     }
     // Crawl YouTube Transcriptions
     if (url.includes('youtube.com')) {
@@ -38,7 +38,7 @@ export const crawlArticle = async (url) => {
     // For other websites, continue with JSDOM.fromURL
     customLog('CRAWLING URL: ' + url, 'green');    
 
-    let articleTitle, articleContent;
+    let articleTitle, articleContent, faviconUrl;
 
     try {
       const dom = await JSDOM.fromURL(url, { referrer: 'https://www.google.com/' });
@@ -49,6 +49,10 @@ export const crawlArticle = async (url) => {
       articleTitle = article.title;
       articleContent = article.textContent.replace(/\n/g, '').replace(/\s\s+/g, ' ').trim();      
 
+      // Fetch the favicon URL
+      const faviconElement = dom.window.document.querySelector('link[rel="icon"], link[rel="shortcut icon"]');
+      faviconUrl = new URL(faviconElement.href, url).href;
+
       // Sanitize Fox News articles to remove internal links
       if (url.includes('foxnews.com')) {
         articleContent = cleanFoxNewsArticleContent(articleContent);
@@ -57,7 +61,11 @@ export const crawlArticle = async (url) => {
       articleContent = truncateContent(articleContent, maxCharacters);
 
     } catch (error) {
-      console.error('JSDOM or Readability Error:', error);
+      if (error.message.includes("Error: Resource was not loaded. Status: 403")) {
+        console.error("JSDOM or Readability Error: Resource was not loaded. Status: 403");
+      } else  {
+        console.error('JSDOM or Readability Error:', error);
+      }
       
       try {
         console.log('Trying Puppeteer to crawl..');
@@ -68,86 +76,97 @@ export const crawlArticle = async (url) => {
         return { title: null, content: null };
       }
     }
-    // console.log(articleTitle+'\n'+articleContent);
-    return { title: articleTitle, content: articleContent };
+    // console.log(articleTitle+'\n'+articleContent+'\n'+faviconUrl);
+    return { title: articleTitle, content: articleContent, favicon: faviconUrl };
 };
 
-// Helper function to crawl articles from specific websites
+// Helper function to crawl articles from specific websites that don't support JSDOM
 const getArticleData = async (url, selector) => {
-  const browser = await puppeteer.launch({
-    defaultArgs: ['--enable-features=NetworkService','--disable-extensions','--no-sandbox','--disable-setuid-sandbox','--disable-web-security','--disable-features=IsolateOrigins,site-per-process','--disable-site-isolation-trials','--no-zygote','--single-process',],
-    headless: 'new',
-  });
-  const page = await browser.newPage();
-  // Set user agent to mimic a regular browser
-  await page.setUserAgent(
-    'Mozilla/8.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.5672.126 Safari/537.36'
-  );
-  // Set viewport size to a typical browser size
-  await page.setViewport({ width: 1366, height: 768 });
-  // Set navigation timeout to 10 seconds (10000 ms)
-  await page.setDefaultNavigationTimeout(10000);
-  
-  // Emulate human-like behavior
-  await page.goto(url, { waitUntil: 'networkidle0' });
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await page.waitForSelector('body');
+  try {
+    const browser = await puppeteer.launch({
+      defaultArgs: ['--enable-features=NetworkService', '--disable-extensions', '--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security', '--disable-features=IsolateOrigins,site-per-process', '--disable-site-isolation-trials', '--no-zygote', '--single-process'],
+      headless: 'new',
+    });
+    const page = await browser.newPage();
+    // Set user agent to mimic a regular browser
+    await page.setUserAgent('Mozilla/8.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.5672.126 Safari/537.36');
+    // Set viewport size to a typical browser size
+    await page.setViewport({ width: 1366, height: 768 });
+    // Set navigation timeout to 10 seconds (10000 ms)
+    await page.setDefaultNavigationTimeout(10000);
 
-  // Extract the HTML content of the page
-  let content = await page.content();
-  // Extract the title from the HTML content
-  const title = await page.$eval('title', (element) => element.textContent);
+    // Emulate human-like behavior
+    await page.goto(url, { waitUntil: 'networkidle0' });
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForSelector('body');
+    
+    // Extract the HTML content of the page
+    let content = await page.content();
+    // Extract the title from the HTML content
+    const title = await page.$eval('title', (element) => element.textContent);
 
-  await browser.close();
+    // Fetch the favicon URL
+    const faviconUrl = await page.$$eval('link[rel="icon"], link[rel="shortcut icon"]', (elements) => {
+      const favicon = elements.find((el) => el.href);
+      return favicon ? favicon.href : null;
+    });    
 
-  // If a selector is provided, extract content using regex selector
-  if (selector) {
-    const dom = new JSDOM(content);
-    const elements = Array.from(dom.window.document.querySelectorAll('*'));
-    const regex = new RegExp(selector, 'i');
-    const selectedElements = elements.filter(element => regex.test(element.className));
-    content = selectedElements.map(element => element.textContent).join(' ');
-    console.log('Selected Content: ' + content);
-  }
-
-
-  // Sanitize the HTML content to remove unwanted tags and attributes
-  let sanitizedContent = sanitizeHtml(content, {
-    allowedTags: ['p', 'a', 'ul', 'ol', 'li', 'blockquote'],
-    allowedAttributes: {
-      a: ['href'],
-    },
-  });
-  
-  // Remove the prefixes from Washington Post articles
-  if (url.includes('washingtonpost.com')) {
-    sanitizedContent = cleanWAPOArticleContent(sanitizedContent);
-
-    // Sanitize Washington Post paywall content
-    const paywallIndex = sanitizedContent.indexOf('WpGet the full experience.Choose your plan');
-    if (paywallIndex !== -1) {
-      sanitizedContent = sanitizedContent.substring(0, paywallIndex);
+    // If a selector is provided, extract content using regex selector
+    if (selector) {
+      const dom = new JSDOM(content);
+      const elements = Array.from(dom.window.document.querySelectorAll('*'));
+      const regex = new RegExp(selector, 'i');
+      const selectedElements = elements.filter((element) => regex.test(element.className));
+      content = selectedElements.map((element) => element.textContent).join(' ');
+      console.log('Selected Content: ' + content);
     }
+
+    // Sanitize the HTML content to remove unwanted tags and attributes
+    let sanitizedContent = sanitizeHtml(content, {
+      allowedTags: ['p', 'a', 'ul', 'ol', 'li', 'blockquote'],
+      allowedAttributes: {
+        a: ['href'],
+      },
+    });
+
+    // Remove after Copyright ©
+    const copyrightIndex = sanitizedContent.indexOf('Copyright ©');
+    if (copyrightIndex !== -1) {
+      sanitizedContent = sanitizedContent.substring(0, copyrightIndex);
+    }
+
+    // Remove the prefixes from Washington Post articles
+    if (url.includes('washingtonpost.com')) {
+      sanitizedContent = cleanWAPOArticleContent(sanitizedContent);
+
+      // Sanitize Washington Post paywall content
+      const paywallIndex = sanitizedContent.indexOf('WpGet the full experience.Choose your plan');
+      if (paywallIndex !== -1) {
+        sanitizedContent = sanitizedContent.substring(0, paywallIndex);
+      }
+    }
+
+    // Convert the sanitized content back to plain text
+    let textContent = new JSDOM(sanitizedContent).window.document.querySelector('body').textContent.trim();
+
+    textContent = truncateContent(textContent, maxCharacters);
+
+    await browser.close();
+
+    // console.log(title + '\n' + textContent);
+    return { title, content: textContent, favicon: faviconUrl };
+  } catch (error) {
+    
+    if (error.message.includes('Navigation timeout')) {
+      console.error('Puppeteer Error:', error.message);
+    } else {
+      console.error('An error occurred:', error);
+    }
+
+    await browser.close();
+    
+    return null;
   }
-
-  // Remove the postfixes from WSJ articles
-  if (url.includes('wsj.com')) {
-
-    // const copyrightIndex = sanitizedContent.indexOf('Copyright ©');
-    // if (copyrightIndex !== -1) {
-    //   sanitizedContent = sanitizedContent.substring(0, copyrightIndex);
-    // }
-  }
-  
-
-  // Convert the sanitized content back to plain text
-  let textContent = new JSDOM(sanitizedContent).window.document.querySelector('body').textContent.trim();
-
-  textContent = truncateContent(textContent, maxCharacters);
-
-
-  // console.log(title + '\n' + textContent);
-  return { title, content: textContent };
 };
 
 // Helper function to get YouTube transcription
@@ -163,16 +182,18 @@ const getYouTubeTranscription = async (url) => {
 
     // Remove hidden line breaks
     content = content.replace(/\r?\n|\r/g, ' ');
+    
+    content = truncateContent(content, maxCharacters);
 
 
     const dom = await JSDOM.fromURL(url, { referrer: 'https://www.google.com/', resources: 'usable' });
     const titleElement = dom.window.document.querySelector('title');
     const title = titleElement ? titleElement.textContent.trim() : 'YouTube';
 
-    content = truncateContent(content, maxCharacters);
+    const favicon = 'https://www.youtube.com/s/desktop/339bae71/img/favicon_32x32.png';
 
     // console.log(title);
-    return { title: title, content };
+    return { title: title, content, favicon };
   } catch (error) {
     if (error instanceof YoutubeTranscriptError) {
       customLog('TRANSCRIPT IS DISABLED FOR THIS YOUTUBE VIDEO: ' + error, 'yellow');
@@ -219,3 +240,5 @@ const truncateContent = (content, maxCharacters) => {
   }
   return content;
 };
+
+export default crawlArticle;

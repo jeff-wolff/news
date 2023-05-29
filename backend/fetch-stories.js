@@ -5,7 +5,7 @@ exports.fetchStories = async () => {
   const storyMap = {};
 
   // Retrieve top 10 breaking news stories for USA on Google News (up to 5 articles for each story)
-  const heads = await news.headlines({ n: 12 });
+  const heads = await news.headlines({ n: 5 });
 
   for (const item of heads) {
     const contentSnippet = item.contentSnippet;

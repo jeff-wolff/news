@@ -75,14 +75,15 @@ const getNews = async () => {
 
   const totalArticles = articles.reduce((count, story) => count + story.length, 0);
 
+  
   setTimeout(() => {
+    
     console.log('\n\nTotal Stories: ' + articles.length);
-    console.log('Total Articles: ' + totalArticles);
-    console.log('\n\n');
     articles.forEach((story, index) => {
       console.log('# of Articles in Story ' + (index + 1) + ': ' + story.length);
     });
-    
+    console.log('Total Articles: ' + totalArticles);
+        
     console.log('\n\nElapsed Time:', elapsedSecondsFixed, 'seconds');
     console.log('Current Time:', new Date().toLocaleTimeString());
     
