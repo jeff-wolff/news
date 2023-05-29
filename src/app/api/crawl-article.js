@@ -1,4 +1,5 @@
 const { customLog } = require('./custom-log');
+const { identifyDuplicates } = require('./duplicate-detector.js');
 const { JSDOM } = require('jsdom');
 const { Readability } = require('@mozilla/readability');
 const { YoutubeTranscript, YoutubeTranscriptError } = require('youtube-transcript');
@@ -7,28 +8,32 @@ const sanitizeHtml = require('sanitize-html');
 
 const maxCharacters = 11000; // Maximum allowed character count per article
 
-const crawlArticle = async (url) => { 
+export async function crawlArticle(url) { 
     // Crawl Washington Post
     if (url.includes('washingtonpost.com')) {
       customLog('CRAWLING WASHINGTON POST ARTICLE: ' + url, 'magenta');
       // TODO: Add rate limit.
       // customLog('NOT CRAWLING WASHINGTON POST, NEED TO RATE LIMIT', 'yellow');
       // return { title: null, content: null };
-      return await getArticleData(url); //, /(grid-body|luf-content-well)/
+      return await getArticleData(url, /(grid-body|luf-content-well)/);
     }
     // Crawl Bloomberg    
     if (url.includes('bloomberg.com')) {
-      customLog('CRAWLING BLOOMBERG ARTICLE: ' + url, 'cyan');
-      // TODO: Fix the crawling...
-      // customLog('NOT CRAWLING BLOOMBERG, NEED TO RATE LIMIT', 'yellow');
-      // return { title: null, content: null };
-      return await getArticleData(url, '/(teaser-content__\w+|article-body)/');
+      // customLog('CRAWLING BLOOMBERG ARTICLE: ' + url, 'cyan');
+      // return await getArticleData(url, /(teaser-content__\w+|article-body)/);
+      customLog('NOT CRAWLING BLOOMBERG DURING DEV', 'yellow');
+      return { title: null, content: null };
+    }
+    // Crawl Axios
+    if (url.includes('axios.com')) {
+      customLog('CRAWLING AXIOS ARTICLE: ' + url, 'cyan')
+      return await getArticleData(url, /^DraftjsBlocks_draftjs/)
     }
     // Crawl WSJ    
     if (url.includes('wsj.com')) {
       customLog('CRAWLING WSJ ARTICLE, CANNOT BYBALL PAYWALL NEED AUTHENTICATION: ' + url, 'blue');
       // return { title: null, content: null };
-      return await getArticleData(url, '/css-k3zb6l-Paragraph/'); 
+      return await getArticleData(url, /ef4qpkp0/); 
     }
     // Crawl YouTube Transcriptions
     if (url.includes('youtube.com')) {
@@ -51,24 +56,47 @@ const crawlArticle = async (url) => {
 
       // Fetch the favicon URL
       const faviconElement = dom.window.document.querySelector('link[rel="icon"], link[rel="shortcut icon"]');
-      faviconUrl = new URL(faviconElement.href, url).href;
+      faviconUrl = faviconElement ? new URL(faviconElement.href, url).href : null;
+
+      // BBC injects the favicon in later...
+      if (url.includes('bbc.com')) {
+        faviconUrl = 'https://static.files.bbci.co.uk/core/website/assets/static/icons/favicon/news/favicon-32.5cf4e6db028a596f5dc3.png';
+      }
 
       // Sanitize Fox News articles to remove internal links
       if (url.includes('foxnews.com')) {
         articleContent = cleanFoxNewsArticleContent(articleContent);
       }
 
+
+      // Remove after Copyright
+      const copyrightRegex = /Copyright\s+©?\s*\d{4}/;
+      const match = articleContent.match(new RegExp(`${copyrightRegex.source}`, 'i'));
+      if (match) {
+        articleContent = articleContent.substring(0, match.index);
+      }      
+
+      // Identified duplicate content
+      // const dupes = identifyDuplicates(articleContent)
+      // .then(dupes => {
+      //   console.log(dupes);
+      // })
+      // .catch(error => {
+      //   console.error(error);
+      // });
+  
+
       articleContent = truncateContent(articleContent, maxCharacters);
 
     } catch (error) {
-      if (error.message.includes("Error: Resource was not loaded. Status: 403")) {
-        console.error("JSDOM or Readability Error: Resource was not loaded. Status: 403");
+      if (error.message.includes("Resource was not loaded. Status: 403")) {
+        customLog('JSDOM Error: Resource was not loaded. Status: 403', 'yellow');
       } else  {
         console.error('JSDOM or Readability Error:', error);
       }
       
       try {
-        console.log('Trying Puppeteer to crawl..');
+        customLog('Trying Puppeteer to crawl..', 'cyan');
         return await getArticleData(url);
         
       } catch (innerError) {
@@ -103,7 +131,7 @@ const getArticleData = async (url, selector) => {
     // Extract the HTML content of the page
     let content = await page.content();
     // Extract the title from the HTML content
-    const title = await page.$eval('title', (element) => element.textContent);
+    let title = await page.$eval('title', (element) => element.textContent);
 
     // Fetch the favicon URL
     const faviconUrl = await page.$$eval('link[rel="icon"], link[rel="shortcut icon"]', (elements) => {
@@ -117,8 +145,9 @@ const getArticleData = async (url, selector) => {
       const elements = Array.from(dom.window.document.querySelectorAll('*'));
       const regex = new RegExp(selector, 'i');
       const selectedElements = elements.filter((element) => regex.test(element.className));
-      content = selectedElements.map((element) => element.textContent).join(' ');
-      console.log('Selected Content: ' + content);
+      const selectedContent = selectedElements.map((element) => element.textContent).join(' ');
+      console.log('Selected Content: ' + selectedContent);
+      content = selectedContent;
     }
 
     // Sanitize the HTML content to remove unwanted tags and attributes
@@ -129,25 +158,23 @@ const getArticleData = async (url, selector) => {
       },
     });
 
-    // Remove after Copyright ©
-    const copyrightIndex = sanitizedContent.indexOf('Copyright ©');
-    if (copyrightIndex !== -1) {
-      sanitizedContent = sanitizedContent.substring(0, copyrightIndex);
+    // Remove after Copyright
+    const copyrightRegex = /Copyright\s+©?\s*\d{4}/;
+    const match = sanitizedContent.match(new RegExp(`${copyrightRegex.source}`, 'i'));
+    if (match) {
+      sanitizedContent = sanitizedContent.substring(0, match.index);
     }
 
     // Remove the prefixes from Washington Post articles
     if (url.includes('washingtonpost.com')) {
       sanitizedContent = cleanWAPOArticleContent(sanitizedContent);
-
-      // Sanitize Washington Post paywall content
-      const paywallIndex = sanitizedContent.indexOf('WpGet the full experience.Choose your plan');
-      if (paywallIndex !== -1) {
-        sanitizedContent = sanitizedContent.substring(0, paywallIndex);
-      }
+      title = title.replace(' - The Washington Post','');
     }
 
     // Convert the sanitized content back to plain text
     let textContent = new JSDOM(sanitizedContent).window.document.querySelector('body').textContent.trim();
+    
+    textContent = textContent.replace(/\n/g, '').replace(/\s\s+/g, ' ').trim();      
 
     textContent = truncateContent(textContent, maxCharacters);
 
@@ -214,13 +241,25 @@ const extractContentFromTranscript = (transcript) => {
 };
 
 const cleanWAPOArticleContent = (content) => {
-  // Define the regex patterns to match the prefixes and postfixes specific to Washington Post
   const prefixPattern = /^(Listen\d+\s+minComment on this storyComment\d+Gift ArticleShare|Skip to end of carousel)/;
-  const postfixPattern = /Show moreChevronDown\d+\s+CommentsGiftOutlineGift Article$/;
+  const postfixSelector = 'GiftOutlineGift';
 
   // Remove the prefixes and postfixes from the content using regex replacement
   let cleanedContent = content.replace(prefixPattern, '');
-  cleanedContent = cleanedContent.replace(postfixPattern, '');
+
+  const postfixIndex = cleanedContent.indexOf(postfixSelector);
+  if (postfixIndex !== -1) {
+    cleanedContent = cleanedContent.substring(0, postfixIndex);
+  }
+
+  // Sanitize Washington Post paywall content
+  const paywallIndex = cleanedContent.indexOf('WpGet the full experience.Choose your plan');
+  console.log('pw index: '+paywallIndex)
+  if (paywallIndex !== -1) {
+    cleanedContent = cleanedContent.substring(0, paywallIndex);
+  }
+
+  console.log('wapo: '+cleanedContent);
 
   return cleanedContent;
 };
@@ -240,5 +279,3 @@ const truncateContent = (content, maxCharacters) => {
   }
   return content;
 };
-
-export default crawlArticle;

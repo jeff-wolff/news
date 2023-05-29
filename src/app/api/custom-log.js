@@ -1,4 +1,4 @@
-export default function customLog(message, color) {
+export async function customLog(message, color) {
     const timestamp = new Date().toLocaleString();
     let colorCode;
   

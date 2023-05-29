@@ -1,12 +1,12 @@
-const { crawlArticle } = require('./crawl-article');
-const { fetchStories } = require('./fetch-stories');
+const { crawlArticle } = require('./api/crawl-article');
+const { fetchStories } = require('./api/fetch-stories');
 
-const fetchNews = async () => {
+export async function fetchNews() {
   const startTime = new Date(); // Record the start time
 
   const storyArray = await fetchStories();
   const articles = [];
-  const excludeSources = ['New York Post', 'The Daily Beast', 'The Daily Mail', 'Slate']; // Optional
+  const excludeSources = ['New York Post', 'The Daily Beast', 'The Daily Mail', 'Slate', 'The Weather Channel'];
 
   for (let storyIndex = 0; storyIndex < storyArray.length; storyIndex++) {
     const story = storyArray[storyIndex];
@@ -92,5 +92,3 @@ const createSummaryConsoleLog = async (articles) => {
 
   return summaries;
 };
-
-export default fetchNews;

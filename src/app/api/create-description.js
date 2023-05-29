@@ -14,8 +14,8 @@ export const createTitle = async (articles) => {
   const titles = [];
 
   for (const story of articles) {
-    const titlePrompt = `\nCreate an unbiased headline based on this news summary. Write in the style of AP News. 10 tokens max.\n\n`;  
-    const storyTitleContent = story.map((article) => `${article.title}`).join('\n'); // TODO: get the summary content from create-summary in here.
+    const titlePrompt = `\nCreate a description based on this news summary. Include all important subjects and facts.  Don't abbreviate unless already stated. Write 25 tokens maximum.\n\n`;  
+    const storyTitleContent = story.map((article) => `${article.title}`).join('\n'); // TODO: get the bullet point summary content from create-summary in here.
     const storyTitlePrompt = `${titlePrompt} News Summary: """${storyTitleContent}"""`;
 
     try {

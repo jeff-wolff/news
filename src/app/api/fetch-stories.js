@@ -1,11 +1,11 @@
 // const fetch = require('cross-fetch').default;
 const news = require('gnews');
 
-const fetchStories = async () => {
+export async function fetchStories() {
   const storyMap = {};
 
   // Retrieve top 10 breaking news stories for USA on Google News (up to 5 articles for each story)
-  const heads = await news.headlines({ n: 5 });
+  const heads = await news.headlines({ n: 50 });
 
   for (const item of heads) {
     const contentSnippet = item.contentSnippet;
@@ -86,5 +86,3 @@ const extractUrls = (content) => {
   const matches = [...content.matchAll(regex)];
   return matches.map((match) => match[2]);
 };
-
-export default fetchStories;

@@ -14,10 +14,8 @@ export const createTitle = async (articles) => {
   const titles = [];
 
   for (const story of articles) {
-    const titlePrompt = `\nUse the headline and headline format to write a lowercase 10 token news headline. Name subjects. Abbreviate sparingly. Capitalize pronouns. Capitalize first word. Write the new headline in the following headline format.
-
-Headline Format Examples: Uvalde victim's mother perseveres through teaching, connecting with daughter's memory, In Panama, legal rights given to sea turtles, boosting the 'rights of nature' movement, Head of Russian private army Wagner says more than 20,000 of his troops died in Bakhmut battle\n\n`;  
-    const storyTitleContent = story.map((article) => `${article.title}`).join('\n');
+    const titlePrompt = `\nCreate an unbiased headline based on this news summary. Write in the style of AP News. 10 tokens max.\n\n`;  
+    const storyTitleContent = story.map((article) => `${article.title}`).join('\n'); // TODO: get the summary content from create-summary in here.
     const storyTitlePrompt = `${titlePrompt} Headlines: """${storyTitleContent}"""`;
 
     try {

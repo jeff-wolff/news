@@ -38,7 +38,7 @@ exports.crawlArticle = async (url) => {
     // For other websites, continue with JSDOM.fromURL
     customLog('CRAWLING URL: ' + url, 'green');    
 
-    let articleTitle, articleContent, faviconUrl;
+    let articleTitle, articleContent, faviconUrl = null;
 
     try {
       const dom = await JSDOM.fromURL(url, { referrer: 'https://www.google.com/' });
@@ -51,8 +51,13 @@ exports.crawlArticle = async (url) => {
 
       // Fetch the favicon URL
       const faviconElement = dom.window.document.querySelector('link[rel="icon"], link[rel="shortcut icon"]');
-      faviconUrl = new URL(faviconElement.href, url).href;
+      faviconUrl = faviconElement ? new URL(faviconElement.href, url).href : null;
 
+      // BBC injects the favicon in later...
+      if (url.includes('bbc.com')) {
+        faviconUrl = 'https://static.files.bbci.co.uk/core/website/assets/static/icons/favicon/news/favicon-32.5cf4e6db028a596f5dc3.png';
+      }
+      
       // Sanitize Fox News articles to remove internal links
       if (url.includes('foxnews.com')) {
         articleContent = cleanFoxNewsArticleContent(articleContent);
