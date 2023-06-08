@@ -17,17 +17,11 @@
 }
 
 .stories {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 2rem;
 }
 .stories > div {
-  width: calc(50% - 2rem);
-}
-@media (min-width: 1024px) {
-  .stories > div {
-    width: calc(25% - 2rem);
-  }
 }
 .stories ul {
   list-style: none;
@@ -44,4 +38,9 @@
 
 .stories li:first-child a {
   font-size: 1.5rem;
+}
+
+.image {
+  object-fit: cover;
+  aspect-ratio: 16 / 9;
 }

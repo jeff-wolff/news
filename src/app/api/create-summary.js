@@ -1,7 +1,6 @@
 import { OpenAIApi, Configuration } from 'openai';
 
-// Set your OpenAI API key
-const OPENAI_API_KEY = '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';
+const OPENAI_API_KEY = process.env.OPEN_AI_API_KEY;
 
 // Configure the OpenAI package with your API key
 const configuration = new Configuration({
@@ -14,21 +13,7 @@ export const createSummary = async (articles) => {
     const summaries = [];
   
     for (const story of articles) {
-      const prompt = `Write a bullet point list summary of the following news coverage. News coverage is gathered from various sources.
-      
-      Writing Format & Style:
-      Write in a journalistic AP style (inverted pyramid).
-      Write in bullet points ONLY.
-      Change wording to not plagiarize from the news coverage.
-      Be concise and unbiased.
-      Don't abbreviate words unless you've already stated what it means.
-      Clarify the names of all subjects mentioned.
-      Mention all the most important facts.
-      Include the most important facts in the first 5 bullet points.
-      140 characters or less per bullet point.
-      In total, write 5 bullet points.
-      
-      Respond only with the bullet point list.\n`;
+      const prompt = `\n`;
   
       const storyContent = story.map((article) => `${article.content}`).join('\n\n\n');
   

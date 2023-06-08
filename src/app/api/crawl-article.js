@@ -1,5 +1,4 @@
 const { customLog } = require('./custom-log');
-const { identifyDuplicates } = require('./duplicate-detector.js');
 const { JSDOM } = require('jsdom');
 const { Readability } = require('@mozilla/readability');
 const { YoutubeTranscript, YoutubeTranscriptError } = require('youtube-transcript');
@@ -11,28 +10,25 @@ const maxCharacters = 11000; // Maximum allowed character count per article
 export async function crawlArticle(url) { 
     // Crawl Washington Post
     if (url.includes('washingtonpost.com')) {
-      customLog('CRAWLING WASHINGTON POST ARTICLE: ' + url, 'magenta');
-      // TODO: Add rate limit.
-      // customLog('NOT CRAWLING WASHINGTON POST, NEED TO RATE LIMIT', 'yellow');
-      // return { title: null, content: null };
-      return await getArticleData(url, /(grid-body|luf-content-well)/);
+      customLog('NOT CRAWLING WASHINGTON POST: '+url, 'yellow');
+      // return await getArticleData(url, /grid-body/);
+      return { title: null, content: null };
     }
     // Crawl Bloomberg    
     if (url.includes('bloomberg.com')) {
       // customLog('CRAWLING BLOOMBERG ARTICLE: ' + url, 'cyan');
       // return await getArticleData(url, /(teaser-content__\w+|article-body)/);
-      customLog('NOT CRAWLING BLOOMBERG DURING DEV', 'yellow');
+      customLog('NOT CRAWLING BLOOMBERG: '+url, 'yellow');
       return { title: null, content: null };
     }
     // Crawl Axios
     if (url.includes('axios.com')) {
-      customLog('CRAWLING AXIOS ARTICLE: ' + url, 'cyan')
-      return await getArticleData(url, /^DraftjsBlocks_draftjs/)
+      customLog('CRAWLING AXIOS: ' + url, 'cyan')
+      return await getArticleData(url, /DraftjsBlocks_draftjs__jDHy3/)
     }
     // Crawl WSJ    
     if (url.includes('wsj.com')) {
-      customLog('CRAWLING WSJ ARTICLE, CANNOT BYBALL PAYWALL NEED AUTHENTICATION: ' + url, 'blue');
-      // return { title: null, content: null };
+      customLog('CRAWLING WSJ, CANNOT BYBALL PAYWALL: ' + url, 'cyan');
       return await getArticleData(url, /ef4qpkp0/); 
     }
     // Crawl YouTube Transcriptions
@@ -40,12 +36,13 @@ export async function crawlArticle(url) {
       customLog('CRAWLING YOUTUBE TRANSCRIPTION: ' + url, 'red');
       return await getYouTubeTranscription(url);
     }
-    // For other websites, continue with JSDOM.fromURL
-    customLog('CRAWLING URL: ' + url, 'green');    
-
-    let articleTitle, articleContent, faviconUrl;
-
+    
+    let articleTitle, articleContent, faviconUrl, articleImage;
+    const domain = extractMainDomain(url);
+    
     try {
+      customLog('CRAWLING URL: ' + url, 'green');    
+      // For other websites, continue with JSDOM.fromURL
       const dom = await JSDOM.fromURL(url, { referrer: 'https://www.google.com/' });
       const reader = new Readability(dom.window.document);
       const article = reader.parse();
@@ -54,20 +51,10 @@ export async function crawlArticle(url) {
       articleTitle = article.title;
       articleContent = article.textContent.replace(/\n/g, '').replace(/\s\s+/g, ' ').trim();      
 
-      // Fetch the favicon URL
-      const faviconElement = dom.window.document.querySelector('link[rel="icon"], link[rel="shortcut icon"]');
-      faviconUrl = faviconElement ? new URL(faviconElement.href, url).href : null;
-
-      // BBC injects the favicon in later...
-      if (url.includes('bbc.com')) {
-        faviconUrl = 'https://static.files.bbci.co.uk/core/website/assets/static/icons/favicon/news/favicon-32.5cf4e6db028a596f5dc3.png';
+      // Quick sanitation.
+      if (articleContent.includes('Please ensure Javascript is enabled')) {
+        return { title: null, content: null };
       }
-
-      // Sanitize Fox News articles to remove internal links
-      if (url.includes('foxnews.com')) {
-        articleContent = cleanFoxNewsArticleContent(articleContent);
-      }
-
 
       // Remove after Copyright
       const copyrightRegex = /Copyright\s+©?\s*\d{4}/;
@@ -76,17 +63,29 @@ export async function crawlArticle(url) {
         articleContent = articleContent.substring(0, match.index);
       }      
 
-      // Identified duplicate content
-      // const dupes = identifyDuplicates(articleContent)
-      // .then(dupes => {
-      //   console.log(dupes);
-      // })
-      // .catch(error => {
-      //   console.error(error);
-      // });
-  
-
       articleContent = truncateContent(articleContent, maxCharacters);
+
+      // Fetch the favicon URL
+      const faviconElement = dom.window.document.querySelector('link[rel="icon"], link[rel="shortcut icon"], link[rel="alternate icon"]');
+      faviconUrl = faviconElement ? new URL(faviconElement.href, url).href : domain + '/favicon.ico';
+      
+      // BBC favicon hack
+      if (url.includes('bbc.com')) {
+        faviconUrl = 'https://static.files.bbci.co.uk/core/website/assets/static/icons/favicon/news/favicon-32.5cf4e6db028a596f5dc3.png';
+      }
+
+      // Fetch the og:image URL
+      const ogImageElement = dom.window.document.querySelector('meta[property="og:image"]');
+      articleImage = ogImageElement ? ogImageElement.content : null;
+
+      // Sanitize Fox News articles to remove internal links, remove if opinion.
+      if (url.includes('foxnews.com')) {
+        articleContent = cleanFoxNewsArticleContent(articleContent);
+        const meta = dom.window.document.querySelector('.article-meta').textContent;
+        if (meta.toLowerCase().includes('opinion')) {
+          return { title: null, content: null }
+        }
+      }
 
     } catch (error) {
       if (error.message.includes("Resource was not loaded. Status: 403")) {
@@ -94,50 +93,67 @@ export async function crawlArticle(url) {
       } else  {
         console.error('JSDOM or Readability Error:', error);
       }
-      
-      try {
-        customLog('Trying Puppeteer to crawl..', 'cyan');
+      // Use Puppeteeer if errored out
+      try {        
         return await getArticleData(url);
-        
       } catch (innerError) {
         console.error('Error occurred during Puppeteer operation:', innerError);
         return { title: null, content: null };
       }
     }
-    // console.log(articleTitle+'\n'+articleContent+'\n'+faviconUrl);
-    return { title: articleTitle, content: articleContent, favicon: faviconUrl };
+    // console.log(articleTitle+'\n'+articleContent+'\n'+faviconUrl+'\n'+articleImage);
+    return { title: articleTitle, content: articleContent, favicon: faviconUrl, image: articleImage };
 };
 
 // Helper function to crawl articles from specific websites that don't support JSDOM
 const getArticleData = async (url, selector) => {
+  customLog('Trying Puppeteer to crawl..'+url, 'cyan');
+  let browser;
+  
   try {
-    const browser = await puppeteer.launch({
-      defaultArgs: ['--enable-features=NetworkService', '--disable-extensions', '--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security', '--disable-features=IsolateOrigins,site-per-process', '--disable-site-isolation-trials', '--no-zygote', '--single-process'],
+    browser = await puppeteer.launch({
       headless: 'new',
     });
     const page = await browser.newPage();
-    // Set user agent to mimic a regular browser
-    await page.setUserAgent('Mozilla/8.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.5672.126 Safari/537.36');
+    // Set user agent to mimic a Googlebot
+    await page.setUserAgent('Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)');
+    await page.setExtraHTTPHeaders({
+      referer: 'https://www.google.com/',
+    });
+    // Set JavaScript on
+    await page.setJavaScriptEnabled(true);
+
     // Set viewport size to a typical browser size
     await page.setViewport({ width: 1366, height: 768 });
     // Set navigation timeout to 10 seconds (10000 ms)
     await page.setDefaultNavigationTimeout(10000);
-
+    
     // Emulate human-like behavior
     await page.goto(url, { waitUntil: 'networkidle0' });
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await page.waitForSelector('body');
     
-    // Extract the HTML content of the page
-    let content = await page.content();
+    await new Promise(r => setTimeout(r, 2000)); // 2000ms delay
+    
     // Extract the title from the HTML content
     let title = await page.$eval('title', (element) => element.textContent);
-
+    
+    // Fetch the og:image URL
+    const ogImageElement = await page.$('meta[property="og:image"]');
+    const ogImageUrl = ogImageElement ? await page.evaluate(element => element.getAttribute('content'), ogImageElement) : null;
+    
     // Fetch the favicon URL
-    const faviconUrl = await page.$$eval('link[rel="icon"], link[rel="shortcut icon"]', (elements) => {
+    const faviconUrl = await page.$$eval('link[rel="icon"], link[rel="shortcut icon"], link[rel="alternate icon"]', (elements) => {
       const favicon = elements.find((el) => el.href);
       return favicon ? favicon.href : null;
     });    
+    
+
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)); //Scroll to bottom
+
+    await new Promise(r => setTimeout(r, 1000)); // 1000ms delay
+
+    // Extract the HTML content of the page
+    let content = await page.content();
 
     // If a selector is provided, extract content using regex selector
     if (selector) {
@@ -146,7 +162,7 @@ const getArticleData = async (url, selector) => {
       const regex = new RegExp(selector, 'i');
       const selectedElements = elements.filter((element) => regex.test(element.className));
       const selectedContent = selectedElements.map((element) => element.textContent).join(' ');
-      console.log('Selected Content: ' + selectedContent);
+      customLog('Selected Content: ' + selectedContent, 'yellow');
       content = selectedContent;
     }
 
@@ -158,17 +174,26 @@ const getArticleData = async (url, selector) => {
       },
     });
 
-    // Remove after Copyright
+    // Remove after Copyright ©
     const copyrightRegex = /Copyright\s+©?\s*\d{4}/;
     const match = sanitizedContent.match(new RegExp(`${copyrightRegex.source}`, 'i'));
     if (match) {
       sanitizedContent = sanitizedContent.substring(0, match.index);
     }
 
-    // Remove the prefixes from Washington Post articles
+    // Remove the pre/postfixes from Washington Post articles
     if (url.includes('washingtonpost.com')) {
       sanitizedContent = cleanWAPOArticleContent(sanitizedContent);
       title = title.replace(' - The Washington Post','');
+    }
+
+    // Remove the pre/postfixes from WSJ articles
+    if (url.includes('wsj.com')) {
+      title = title.replace(' - WSJ','');
+      const meta = await page.$eval('.css-197is4s', (element) => element.textContent).catch(() => null);
+      if (meta && meta.toLowerCase().includes('opinion')) {
+        return { title: null, content: null }
+      }
     }
 
     // Convert the sanitized content back to plain text
@@ -178,21 +203,17 @@ const getArticleData = async (url, selector) => {
 
     textContent = truncateContent(textContent, maxCharacters);
 
-    await browser.close();
-
     // console.log(title + '\n' + textContent);
-    return { title, content: textContent, favicon: faviconUrl };
+    return { title, content: textContent, favicon: faviconUrl, image: ogImageUrl };
   } catch (error) {
-    
     if (error.message.includes('Navigation timeout')) {
       console.error('Puppeteer Error:', error.message);
     } else {
       console.error('An error occurred:', error);
     }
-
-    await browser.close();
-    
     return null;
+  } finally {
+    await browser.close();
   }
 };
 
@@ -219,8 +240,12 @@ const getYouTubeTranscription = async (url) => {
 
     const favicon = 'https://www.youtube.com/s/desktop/339bae71/img/favicon_32x32.png';
 
+     // Fetch the og:image URL
+     const ogImageElement = dom.window.document.querySelector('meta[property="og:image"]');
+     const image = ogImageElement ? ogImageElement.content : null;
+
     // console.log(title);
-    return { title: title, content, favicon };
+    return { title, content, favicon, image };
   } catch (error) {
     if (error instanceof YoutubeTranscriptError) {
       customLog('TRANSCRIPT IS DISABLED FOR THIS YOUTUBE VIDEO: ' + error, 'yellow');
@@ -229,7 +254,7 @@ const getYouTubeTranscription = async (url) => {
       customLog('ERROR OCCURRED WHILE FETCHING YOUTUBE TRANSCRIPT: ' + error, 'yellow');
       return { title: null, content: null };
     }
-  }
+  } 
 };
 
 // Helper function to extract the content from the YouTube transcript
@@ -256,10 +281,8 @@ const cleanWAPOArticleContent = (content) => {
   const paywallIndex = cleanedContent.indexOf('WpGet the full experience.Choose your plan');
   console.log('pw index: '+paywallIndex)
   if (paywallIndex !== -1) {
-    cleanedContent = cleanedContent.substring(0, paywallIndex);
+    // cleanedContent = cleanedContent.substring(0, paywallIndex);
   }
-
-  console.log('wapo: '+cleanedContent);
 
   return cleanedContent;
 };
@@ -277,5 +300,17 @@ const truncateContent = (content, maxCharacters) => {
   if (content.length > maxCharacters) {
     return content.slice(0, maxCharacters) + "...";
   }
+
   return content;
+};
+
+const extractMainDomain = (url) => {
+  // Match the main domain using a regular expression
+  const domainMatch = url.match(/^(https?:\/\/[^/]+)/i);
+
+  if (domainMatch && domainMatch[1]) {
+    return domainMatch[1];
+  }
+
+  return null; // Return null if no main domain is found
 };

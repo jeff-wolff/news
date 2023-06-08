@@ -1,7 +1,6 @@
 import { OpenAIApi, Configuration } from 'openai';
 
-// Set your OpenAI API key
-const OPENAI_API_KEY = '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';
+const OPENAI_API_KEY = process.env.OPEN_AI_API_KEY;
 
 // Configure the OpenAI package with your API key
 const configuration = new Configuration({
@@ -14,8 +13,8 @@ export const createTitle = async (articles) => {
   const titles = [];
 
   for (const story of articles) {
-    const titlePrompt = `\nCreate an unbiased headline based on this news summary. Write in the style of AP News. 10 tokens max.\n\n`;  
-    const storyTitleContent = story.map((article) => `${article.title}`).join('\n'); // TODO: get the summary content from create-summary in here.
+    const titlePrompt = `\nCreate a short, concise, unbiased, catchy, elusive headline. Write in the style of AP News. Don't use all the facts.\n\n`;  
+    const storyTitleContent = story.map((article) => `${article.title}`).join('\n'); // TODO: get headlines.
     const storyTitlePrompt = `${titlePrompt} News Summary: """${storyTitleContent}"""`;
 
     try {
