@@ -72,6 +72,21 @@ export async function fetchStories() {
   return stories;
 }
 
+const extractUrls = (content) => {
+  const regex = /<a\s+(?:[^>]*?\s+)?href=(["'])(.*?)\1/g;
+  const matches = [...content.matchAll(regex)];
+  return matches.map((match) => match[2]);
+};
+
+const crawlGooglePage = async (page, url) => {
+  await page.goto(url);
+
+  let title = await page.title();
+  title = title.replace('Google News - ', '').replace(' - Overview', '');
+
+  return title;
+}
+
 const resolveLink = async (googleNewsLink) => {
   try {
     const response = await fetch(googleNewsLink);
@@ -96,18 +111,3 @@ const resolveLink = async (googleNewsLink) => {
     return googleNewsLink;
   }
 };
-
-const extractUrls = (content) => {
-  const regex = /<a\s+(?:[^>]*?\s+)?href=(["'])(.*?)\1/g;
-  const matches = [...content.matchAll(regex)];
-  return matches.map((match) => match[2]);
-};
-
-const crawlGooglePage = async (page, url) => {
-  await page.goto(url);
-
-  let title = await page.title();
-  title = title.replace('Google News - ', '').replace(' - Overview', '');
-
-  return title;
-}

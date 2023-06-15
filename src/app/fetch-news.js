@@ -4,7 +4,7 @@ const { crawlArticle } = require('./api/crawl-article');
 const { lookupBias } = require('./api/lookup-bias');
 
 export async function fetchNews() {
-  const startTime = new Date(); // Record the start time
+  const startTime = new Date();
 
   const storyArray = await fetchStories();
 
@@ -18,7 +18,6 @@ export async function fetchNews() {
 
     customLog(`Story: ${storyId} - ${storyTitle}`,'lightBlue');
 
-
     const snippets = story.snippets;
     
     for (const snippet of snippets) {
@@ -27,7 +26,7 @@ export async function fetchNews() {
           const article = await crawlArticle(snippet.href);
           article.storyId = story.id;
           article.url = snippet.href;
-          article.source = snippet.source; // Store the source in the article object
+          article.source = snippet.source;
 
           // Filter articles by excluded sources, null content, opinion paths
           if (
@@ -68,22 +67,18 @@ export async function fetchNews() {
           console.error('Error occurred while processing article:', error)
         }
     }
-
-
-
   }
-
 
   // console.log(storyArray);
   // console.log(storyArticles);
 
   composePrompts(storyArticles)
 
-  const endTime = new Date(); // Record the end time
-  const elapsedTime = endTime - startTime; // Calculate the elapsed time in milliseconds
-
-  const elapsedSeconds = elapsedTime / 1000; // Convert to seconds
-  const elapsedSecondsFixed = elapsedSeconds.toFixed(1); // Round to 1 decimal place
+  // Calculate Elapsed time
+  const endTime = new Date();
+  const elapsedTime = endTime - startTime; // in milliseconds
+  const elapsedSeconds = elapsedTime / 1000; // convert to seconds
+  const elapsedSecondsFixed = elapsedSeconds.toFixed(1); // round to 1 decimal place
 
   const totalArticles = storyArticles.length;
 
@@ -112,14 +107,12 @@ export async function fetchNews() {
   
     console.log(JSON.stringify(response, null, 2));
   }, 2000);
-  
 
   return storyArticles;
 };
 
 const logArticle = async (article) => {
   customLog('---', 'lightGray');
-
   // customLog(`URL - ${article.url}`, 'lightGray');
   customLog(`Title - ${article.title}`, 'lightGray');
   customLog(`Source - ${article.source}`, 'lightGray');
@@ -156,7 +149,6 @@ const composePrompts = async (story) => {
     const headlineTitles = articles.map((article) => `${article.title}`).join('\n');
     const fullHeadlinePrompt = `${headlinePrompt}\nTLDR: """${headlineTitles}"""`;
 
-    
     //   console.log('\n---\n\n'+storyPrompt);
     //   console.log('\n---\n\n'+fullHeadlinePrompt);
     //   // console.log('\n---\n\n'+tldrPrompt);
