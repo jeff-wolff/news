@@ -16,10 +16,10 @@ export async function crawlArticle(url) {
     }
     // Crawl Bloomberg    
     if (url.includes('bloomberg.com')) {
-      // customLog('CRAWLING BLOOMBERG ARTICLE: ' + url, 'cyan');
-      // return await getArticleData(url, /(teaser-content__\w+|article-body)/);
-      customLog('NOT CRAWLING BLOOMBERG: '+url, 'yellow');
-      return { title: null, content: null };
+      customLog('CRAWLING BLOOMBERG ARTICLE: ' + url, 'cyan');
+      return await getArticleData(url, /(teaser-content__\w+|article-body)/);
+      // customLog('NOT CRAWLING BLOOMBERG: '+url, 'yellow');
+      // return { title: null, content: null };
     }
     // Crawl Axios
     if (url.includes('axios.com')) {

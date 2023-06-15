@@ -22,9 +22,9 @@ export default async function scrapeAllsides() {
     const page = await browser.newPage();
 
     // Set user agent to mimic a regular browser
-    await page.setUserAgent(
-      'Mozilla/8.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.5672.126 Safari/537.36'
-    );
+    // await page.setUserAgent(
+    //   'Mozilla/8.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.5672.126 Safari/537.36'
+    // );
 
     // Set viewport size to a typical browser size
     await page.setViewport({ width: 1366, height: 768 });

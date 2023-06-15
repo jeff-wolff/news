@@ -8,7 +8,7 @@ export async function fetchStories() {
   const heads = await news.headlines({ 
     country: 'us',
     language: 'en', 
-    n: 7
+    n: 12
   });
   
   // const heads = await news.topic('HEALTH', {n : 3});

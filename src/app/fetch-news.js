@@ -148,15 +148,15 @@ const composePrompts = async (story) => {
   for (const [storyId, articles] of Object.entries(groupedArticles)) {
     const prompt = `Summarize the news coverage in a concise, unbiased, politically neutral, bullet point list, and include all the subjects and facts of the story. Use journalistic AP style (inverted pyramid). Write in bullet points only. Clarify names of all mentioned subjects. Address both sides of the debate. Describe all the important facts. Each bullet point should be 140 characters or less. Provide a total of 6-8 bullet points in response.`;
     const storyContent = articles.map((article) => `${article.content}`).join('\n\n');
-    const storyPrompt = `${prompt} News Coverage: """\n${storyContent}"""`;
+    const storyPrompt = `${prompt}\nNews Coverage: """\n${storyContent}"""`;
 
     // const tldrPrompt = `TLDR: """${storyContent}"""`;
 
-    const headlinePrompt = `Write a short, concise, unbiased, politically neutral, headline. Use journalistic AP style (inverted pyramid). Provide a total of 9 words.`;
+    const headlinePrompt = `Write a news headline in 9 words or less.`;
     const headlineTitles = articles.map((article) => `${article.title}`).join('\n');
-    const fullHeadlinePrompt = `${headlinePrompt} Headlines: """${headlineTitles}"""`;
+    const fullHeadlinePrompt = `${headlinePrompt}\nTLDR: """${headlineTitles}"""`;
 
-    // setTimeout(() => {
+    
     //   console.log('\n---\n\n'+storyPrompt);
     //   console.log('\n---\n\n'+fullHeadlinePrompt);
     //   // console.log('\n---\n\n'+tldrPrompt);
