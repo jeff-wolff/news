@@ -8,15 +8,15 @@ export async function fetchStories() {
   const heads = await news.headlines({ 
     country: 'us',
     language: 'en', 
-    n: 12
+    n: 5
   });
   
   // const heads = await news.topic('HEALTH', {n : 3});
 
-  const browser = await puppeteer.launch({
-    headless: 'new'
-  });
-  const page = await browser.newPage();
+  // const browser = await puppeteer.launch({
+  //   headless: 'new'
+  // });
+  // const page = await browser.newPage();
 
   for (const [i, item] of heads.entries()) {
     const contentSnippet = item.contentSnippet;
@@ -28,7 +28,7 @@ export async function fetchStories() {
     if (!stories.find((story) => story.id === item.guid)) {
       const story = {};
       story.id = item.guid;
-      story.title = await crawlGooglePage(page, fullCoverageUrl);
+      // story.title = await crawlGooglePage(page, fullCoverageUrl);
       story.dateUpdated = item.isoDate;
       story.fullCoverageUrl = fullCoverageUrl;
 
@@ -67,7 +67,7 @@ export async function fetchStories() {
     }
   }
 
-  await browser.close();
+  // await browser.close();
 
   return stories;
 }

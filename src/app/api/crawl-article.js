@@ -16,20 +16,22 @@ export async function crawlArticle(url) {
     }
     // Crawl Bloomberg    
     if (url.includes('bloomberg.com')) {
-      customLog('CRAWLING BLOOMBERG ARTICLE: ' + url, 'cyan');
-      return await getArticleData(url, /(teaser-content__\w+|article-body)/);
-      // customLog('NOT CRAWLING BLOOMBERG: '+url, 'yellow');
-      // return { title: null, content: null };
+      // customLog('CRAWLING BLOOMBERG ARTICLE: ' + url, 'cyan');
+      // return await getArticleData(url, /(teaser-content__\w+|article-body)/);
+      customLog('NOT CRAWLING BLOOMBERG: '+url, 'yellow');
+      return { title: null, content: null };
     }
     // Crawl Axios
     if (url.includes('axios.com')) {
-      customLog('CRAWLING AXIOS: ' + url, 'cyan')
-      return await getArticleData(url, /DraftjsBlocks_draftjs__jDHy3/)
+      customLog('NOT CRAWLING AXIOS: ' + url, 'cyan')
+      return { title: null, content: null };
+      // return await getArticleData(url, /DraftjsBlocks_draftjs__jDHy3/)
     }
     // Crawl WSJ    
     if (url.includes('wsj.com')) {
-      customLog('CRAWLING WSJ, CANNOT BYBALL PAYWALL: ' + url, 'cyan');
-      return await getArticleData(url, /ef4qpkp0/); 
+      customLog('NOT CRAWLING WSJ, CANNOT BYBALL PAYWALL: ' + url, 'cyan');
+      return { title: null, content: null };
+      // return await getArticleData(url, /ef4qpkp0/); 
     }
     // Crawl YouTube Transcriptions
     if (url.includes('youtube.com')) {
@@ -95,7 +97,8 @@ export async function crawlArticle(url) {
       }
       // Use Puppeteeer if errored out
       try {        
-        return await getArticleData(url);
+        return { title: null, content: null }
+        // return await getArticleData(url);
       } catch (innerError) {
         console.error('Error occurred during Puppeteer operation:', innerError);
         return { title: null, content: null };
