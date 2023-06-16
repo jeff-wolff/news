@@ -3,6 +3,7 @@ let puppeteer;
 
 if (process.env.VERCEL_ENV == 'production') {
   puppeteer = require('puppeteer-core'); 
+  console.log('test123');
 } else {
   puppeteer = require('puppeteer'); 
 }
