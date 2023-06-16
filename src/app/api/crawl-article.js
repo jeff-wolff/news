@@ -2,36 +2,48 @@ const { customLog } = require('./custom-log');
 const { JSDOM } = require('jsdom');
 const { Readability } = require('@mozilla/readability');
 const { YoutubeTranscript, YoutubeTranscriptError } = require('youtube-transcript');
-const puppeteer = require('puppeteer');
 const sanitizeHtml = require('sanitize-html');
 
-const maxCharacters = 11000; // Maximum allowed character count per article
+let puppeteer;
+
+if (process.env.VERCEL_ENV == 'production') {
+  puppeteer = require('puppeteer-core'); 
+} else {
+  puppeteer = require('puppeteer'); 
+}
+
+const maxCharacters = 14000; // Maximum allowed character count per article
 
 export async function crawlArticle(url) { 
     // Crawl Washington Post
     if (url.includes('washingtonpost.com')) {
-      customLog('NOT CRAWLING WASHINGTON POST: '+url, 'yellow');
-      // return await getArticleData(url, /grid-body/);
-      return { title: null, content: null };
+      customLog('CRAWLING WASHINGTON POST: '+url, 'yellow');
+      return await getArticleData(url, /article-body/);
+      // return { title: null, content: null };
     }
     // Crawl Bloomberg    
     if (url.includes('bloomberg.com')) {
-      // customLog('CRAWLING BLOOMBERG ARTICLE: ' + url, 'cyan');
-      // return await getArticleData(url, /(teaser-content__\w+|article-body)/);
-      customLog('NOT CRAWLING BLOOMBERG: '+url, 'yellow');
-      return { title: null, content: null };
+      customLog('CRAWLING BLOOMBERG: '+url, 'yellow');
+      return await getArticleData(url, /(teaser-content__\w+|article-body)/);
+      // return { title: null, content: null };
     }
     // Crawl Axios
     if (url.includes('axios.com')) {
-      customLog('NOT CRAWLING AXIOS: ' + url, 'cyan')
-      return { title: null, content: null };
-      // return await getArticleData(url, /DraftjsBlocks_draftjs__jDHy3/)
+      customLog('CRAWLING AXIOS: ' + url, 'cyan')
+      return await getArticleData(url, /DraftjsBlocks_draftjs__\w+/)
+      // return { title: null, content: null };
     }
     // Crawl WSJ    
     if (url.includes('wsj.com')) {
-      customLog('NOT CRAWLING WSJ, CANNOT BYBALL PAYWALL: ' + url, 'cyan');
-      return { title: null, content: null };
-      // return await getArticleData(url, /ef4qpkp0/); 
+      customLog('CRAWLING WSJ, CANNOT BYBALL PAYWALL: ' + url, 'cyan');
+      return await getArticleData(url, /ef4qpkp0/); 
+      // return { title: null, content: null };
+    }
+    // Crawl New York Times    
+    if (url.includes('nytimes.com')) {
+      customLog('CRAWLING NYTIMES, RATE LIMITED: ' + url, 'cyan');
+      return await getArticleData(url, /meteredContent/); 
+      // return { title: null, content: null };
     }
     // Crawl YouTube Transcriptions
     if (url.includes('youtube.com')) {
@@ -88,7 +100,6 @@ export async function crawlArticle(url) {
           return { title: null, content: null }
         }
       }
-
     } catch (error) {
       if (error.message.includes("Resource was not loaded. Status: 403")) {
         customLog('JSDOM Error: Resource was not loaded. Status: 403', 'yellow');
@@ -97,8 +108,7 @@ export async function crawlArticle(url) {
       }
       // Use Puppeteeer if errored out
       try {        
-        return { title: null, content: null }
-        // return await getArticleData(url);
+        return await getArticleData(url);
       } catch (innerError) {
         console.error('Error occurred during Puppeteer operation:', innerError);
         return { title: null, content: null };

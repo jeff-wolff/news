@@ -1,5 +1,11 @@
 const news = require('gnews');
-const puppeteer = require('puppeteer'); 
+let puppeteer;
+
+if (process.env.VERCEL_ENV == 'production') {
+  puppeteer = require('puppeteer-core'); 
+} else {
+  puppeteer = require('puppeteer'); 
+}
 
 export async function fetchStories() {
   const stories = [];
@@ -13,10 +19,10 @@ export async function fetchStories() {
   
   // const heads = await news.topic('HEALTH', {n : 3});
 
-  // const browser = await puppeteer.launch({
-  //   headless: 'new'
-  // });
-  // const page = await browser.newPage();
+  const browser = await puppeteer.launch({
+    headless: 'new'
+  });
+  const page = await browser.newPage();
 
   for (const [i, item] of heads.entries()) {
     const contentSnippet = item.contentSnippet;
@@ -28,7 +34,7 @@ export async function fetchStories() {
     if (!stories.find((story) => story.id === item.guid)) {
       const story = {};
       story.id = item.guid;
-      // story.title = await crawlGooglePage(page, fullCoverageUrl);
+      story.title = await crawlGooglePage(page, fullCoverageUrl);
       story.dateUpdated = item.isoDate;
       story.fullCoverageUrl = fullCoverageUrl;
 
