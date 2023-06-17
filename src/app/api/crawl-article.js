@@ -3,6 +3,7 @@ const { JSDOM } = require('jsdom');
 const { Readability } = require('@mozilla/readability');
 const { YoutubeTranscript, YoutubeTranscriptError } = require('youtube-transcript');
 const sanitizeHtml = require('sanitize-html');
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 let puppeteer;
 
@@ -17,13 +18,13 @@ const maxCharacters = 14000; // Maximum allowed character count per article
 export async function crawlArticle(url) { 
     // Crawl Washington Post
     if (url.includes('washingtonpost.com')) {
-      customLog('CRAWLING WASHINGTON POST: '+url, 'yellow');
+      customLog('CRAWLING WASHINGTON POST: '+url, 'cyan');
       return await getArticleData(url, /article-body/);
       // return { title: null, content: null };
     }
     // Crawl Bloomberg    
     if (url.includes('bloomberg.com')) {
-      customLog('CRAWLING BLOOMBERG: '+url, 'yellow');
+      customLog('CRAWLING BLOOMBERG: '+url, 'cyan');
       return await getArticleData(url, /(teaser-content__\w+|article-body)/);
       // return { title: null, content: null };
     }
@@ -35,20 +36,20 @@ export async function crawlArticle(url) {
     }
     // Crawl WSJ    
     if (url.includes('wsj.com')) {
-      customLog('CRAWLING WSJ, CANNOT BYBALL PAYWALL: ' + url, 'cyan');
-      return await getArticleData(url, /ef4qpkp0/); 
-      // return { title: null, content: null };
+      customLog('NOT CRAWLING WSJ, CANNOT BYBALL RATE LIMIT: ' + url, 'cyan');
+      // return await getArticleData(url, /ef4qpkp0/); 
+      return { title: null, content: null };
     }
     // Crawl New York Times    
     if (url.includes('nytimes.com')) {
-      customLog('CRAWLING NYTIMES, RATE LIMITED: ' + url, 'cyan');
-      return await getArticleData(url, /meteredContent/); 
+      customLog('CRAWLING NYTIMES, PAYWALLED: ' + url, 'cyan');
+      return await getArticleData(url, /meteredContent|css-1n0orw4/); 
       // return { title: null, content: null };
     }
     // Crawl YouTube Transcriptions
     if (url.includes('youtube.com')) {
-      customLog('CRAWLING YOUTUBE TRANSCRIPTION: ' + url, 'red');
-      return await getYouTubeTranscription(url);
+      customLog('CRAWLING YOUTUBE TRANSCRIPTION: ' + url, 'green');
+      return await getYouTubeDetails(url);
     }
     
     let articleTitle, articleContent, faviconUrl, articleImage;
@@ -124,12 +125,22 @@ const getArticleData = async (url, selector) => {
   let browser;
   
   try {
-    browser = await puppeteer.launch({
-      headless: 'new',
-    });
+    
+    if (process.env.VERCEL_ENV == 'production') {
+      browser = await puppeteer.launch({
+        headless: 'false',
+      });
+    } else {
+      browser = await puppeteer.launch({
+        headless: 'false',
+      });
+    }
+
     const page = await browser.newPage();
-    // Set user agent to mimic a Googlebot
-    await page.setUserAgent('Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)');
+    
+    // await page.setUserAgent('Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)');
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 5.1; rv:5.0) Gecko/20100101 Firefox/5.0');
+
     await page.setExtraHTTPHeaders({
       referer: 'https://www.google.com/',
     });
@@ -138,14 +149,14 @@ const getArticleData = async (url, selector) => {
 
     // Set viewport size to a typical browser size
     await page.setViewport({ width: 1366, height: 768 });
-    // Set navigation timeout to 10 seconds (10000 ms)
-    await page.setDefaultNavigationTimeout(10000);
+    // Set navigation timeout to 15 seconds
+    await page.setDefaultNavigationTimeout(15000);
     
     // Emulate human-like behavior
     await page.goto(url, { waitUntil: 'networkidle0' });
     await page.waitForSelector('body');
     
-    await new Promise(r => setTimeout(r, 2000)); // 2000ms delay
+    await delay(2000); // 2000ms delay
     
     // Extract the title from the HTML content
     let title = await page.$eval('title', (element) => element.textContent);
@@ -174,6 +185,10 @@ const getArticleData = async (url, selector) => {
       const elements = Array.from(dom.window.document.querySelectorAll('*'));
       const regex = new RegExp(selector, 'i');
       const selectedElements = elements.filter((element) => regex.test(element.className));
+      selectedElements.forEach((element) => {
+        console.log(element.className);
+        console.log(element.textContent);
+      });
       const selectedContent = selectedElements.map((element) => element.textContent).join(' ');
       customLog('Selected Content: ' + selectedContent, 'yellow');
       content = selectedContent;
@@ -230,8 +245,8 @@ const getArticleData = async (url, selector) => {
   }
 };
 
-// Helper function to get YouTube transcription
-const getYouTubeTranscription = async (url) => {
+// Helper function to get YouTube transcription, title, description, and thumbnail
+const getYouTubeDetails = async (url) => {
   try {
     const transcript = await YoutubeTranscript.fetchTranscript(url);
     if (!transcript || transcript.length === 0) {
@@ -241,23 +256,41 @@ const getYouTubeTranscription = async (url) => {
     
     let content = extractContentFromTranscript(transcript).toLowerCase();
 
-    // Remove hidden line breaks
-    content = content.replace(/\r?\n|\r/g, ' ');
-    
-    content = truncateContent(content, maxCharacters);
-
-
     const dom = await JSDOM.fromURL(url, { referrer: 'https://www.google.com/', resources: 'usable' });
-    const titleElement = dom.window.document.querySelector('title');
-    const title = titleElement ? titleElement.textContent.trim() : 'YouTube';
+    const serializedHTML = dom.serialize();
 
+    // Fetch title
+    const titleElement = dom.window.document.querySelector('meta[name="title"]');
+    const title = titleElement ? titleElement.content : 'YouTube';
+
+    // Fetch description
+    let description;
+    const descriptionRegex = /"shortDescription":\s*"([^"]+)"/;
+    const match = serializedHTML.match(descriptionRegex);
+    // console.log(serializedHTML);
+    if (match && match[1]) {
+      description = match[1];
+      //.replace(/\\n/g, '').replace(/\\r/g, '').replace(/\\u/g, '').trim(); // Remove \n and \u sequences
+      console.log(description);
+    } else {
+      console.log('Description not found.');
+    }
+    // const descriptionElement = dom.window.document.querySelector('meta[name="description"]');
+    // const description = descriptionElement ? descriptionElement.content : '';
+    
+    // Fetch thumbnail
+    const ogImageElement = dom.window.document.querySelector('meta[property="og:image"]');
+    const image = ogImageElement ? ogImageElement.content : null;
+    
+    // Favicon
     const favicon = 'https://www.youtube.com/s/desktop/339bae71/img/favicon_32x32.png';
 
-     // Fetch the og:image URL
-     const ogImageElement = dom.window.document.querySelector('meta[property="og:image"]');
-     const image = ogImageElement ? ogImageElement.content : null;
-
-    // console.log(title);
+    // Remove hidden line breaks
+    content = content.replace(/\r?\n|\r/g, ' ');
+    content = `Video Transcription:\n${content}\n\nVideo Description:\n${description}`;
+    content = truncateContent(content, maxCharacters);
+    
+    console.log(content);
     return { title, content, favicon, image };
   } catch (error) {
     if (error instanceof YoutubeTranscriptError) {

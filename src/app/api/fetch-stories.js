@@ -1,9 +1,9 @@
+const { customLog } = require('./custom-log');
 const news = require('gnews');
-let puppeteer;
+let puppeteer, browser;
 
 if (process.env.VERCEL_ENV == 'production') {
   puppeteer = require('puppeteer-core'); 
-  console.log('test123');
 } else {
   puppeteer = require('puppeteer'); 
 }
@@ -11,19 +11,30 @@ if (process.env.VERCEL_ENV == 'production') {
 export async function fetchStories() {
   const stories = [];
 
+  // Prepare browser for scraping titles
+  if (process.env.VERCEL_ENV == 'production') {
+    browser = await puppeteer.launch({
+      headless: 'new'
+    });
+  } else {
+    browser = await puppeteer.launch({
+      headless: 'new'
+    });
+  }
+  const page = await browser.newPage();
+
   // Retrieve top breaking news stories on Google News (max n=38)
   const heads = await news.headlines({ 
     country: 'us',
     language: 'en', 
-    n: 5
+    n: 7
   });
   
-  // const heads = await news.topic('HEALTH', {n : 3});
+  // WORLD, BUSINESS, TECHNOLOLGY, ENTERTAINMENT, SPORTS, SCIENCE, HEALTH
+  // const heads = await news.topic('TECHNOLOGY', {n : 10});
 
-  const browser = await puppeteer.launch({
-    headless: 'new'
-  });
-  const page = await browser.newPage();
+  console.log(heads);
+
 
   for (const [i, item] of heads.entries()) {
     const contentSnippet = item.contentSnippet;
@@ -32,49 +43,56 @@ export async function fetchStories() {
     const fullCoverageUrl = urls[urls.length-1];
     // console.log(item)
 
-    if (!stories.find((story) => story.id === item.guid)) {
-      const story = {};
-      story.id = item.guid;
-      story.title = await crawlGooglePage(page, fullCoverageUrl);
-      story.dateUpdated = item.isoDate;
-      story.fullCoverageUrl = fullCoverageUrl;
-
-      stories.push(story);
-
-      console.log(`[${new Date(story.dateUpdated).toLocaleString()}] - Story ${story.id} - ${story.title}`);
+    try {
+      if (!stories.find((story) => story.id === item.guid)) {
+        const story = {};
+        story.id = item.guid;
+        story.title = await crawlGooglePage(page, fullCoverageUrl);
+        story.dateUpdated = item.isoDate;
+        story.fullCoverageUrl = fullCoverageUrl;
+  
+        stories.push(story);
+  
+        customLog(`Story: ${story.id} – ${new Date(story.dateUpdated).toLocaleString()} – ${story.title}\n${fullCoverageUrl} `,'cyan');
+        customLog(`\n${JSON.stringify(story, null, 2)}`,'darkGray');
+      }
+      
+      const resolvedSnippetsArray = await Promise.all(
+        itemSnippets
+          .filter((snippet) => snippet !== 'View Full Coverage on Google News')
+          .map(async (snippet, index) => {
+            const sanitizedSnippet = snippet.replace(/\s{2,}.*$/, '');
+            const href = urls[index % urls.length];
+            let source = snippet.replace(sanitizedSnippet, '');
+            source = source.replace(/View Full Coverage on Google News|View Full coverage on Google News/g, '').trim();
+            const resolvedHref = await resolveLink(href);
+  
+            // Sanitize the end of the snippet by removing everything after the dash "-"
+            const sanitizedSnippetEnd = sanitizedSnippet.split(' - ')[0];
+            
+            if (sanitizedSnippetEnd === '' || source === '') {
+              return null;
+            }
+            // console.log("\n")
+            // console.log(`Title: ${sanitizedSnippetEnd}\nURL: ${resolvedHref}\nSource: ${source}`);
+            // console.log("\n")
+  
+            return { snippet: sanitizedSnippetEnd, href: resolvedHref, source };
+          })
+      );
+      
+      if (fullCoverageUrl.includes('/stories/')) { // Only include stories with Google News link
+        const story = stories.find((story) => story.fullCoverageUrl === fullCoverageUrl);
+        story.snippets = resolvedSnippetsArray.filter((snippet) => snippet !== null);
+      }
     }
-    
-    const resolvedSnippetsArray = await Promise.all(
-      itemSnippets
-        .filter((snippet) => snippet !== 'View Full Coverage on Google News')
-        .map(async (snippet, index) => {
-          const sanitizedSnippet = snippet.replace(/\s{2,}.*$/, '');
-          const href = urls[index % urls.length];
-          let source = snippet.replace(sanitizedSnippet, '');
-          source = source.replace(/View Full Coverage on Google News|View Full coverage on Google News/g, '').trim();
-          const resolvedHref = await resolveLink(href);
-
-          // Sanitize the end of the snippet by removing everything after the dash "-"
-          const sanitizedSnippetEnd = sanitizedSnippet.split(' - ')[0];
-          
-          if (sanitizedSnippetEnd === '' || source === '') {
-            return null;
-          }
-          // console.log("\n")
-          // console.log(`Title: ${sanitizedSnippetEnd}\nURL: ${resolvedHref}\nSource: ${source}`);
-          // console.log("\n")
-
-          return { snippet: sanitizedSnippetEnd, href: resolvedHref, source };
-        })
-    );
-    
-    if (fullCoverageUrl.includes('/stories/')) { // Only include stories with Google News link
-      const story = stories.find((story) => story.fullCoverageUrl === fullCoverageUrl);
-      story.snippets = resolvedSnippetsArray.filter((snippet) => snippet !== null);
+    catch(error) {
+      customLog(`Fetch Stories Error: `+error, 'red');
     }
   }
-
-  // await browser.close();
+  
+  // Close browser 
+  await browser.close();
 
   return stories;
 }
