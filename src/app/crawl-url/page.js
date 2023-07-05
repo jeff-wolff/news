@@ -4,7 +4,7 @@ import { crawlArticle } from '../api/crawl-article';
 
 
 export default async function CrawlUrl() {
-    const url = 'https://www.youtube.com/watch?v=p3wo_w_mMt4';
+    const url = 'https://www.youtube.com/watch?v=4u_Z-9Ah2Wc';
     const newsArticle = await crawlArticle(url);
 
     return (

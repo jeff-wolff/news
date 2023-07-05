@@ -36,19 +36,20 @@ export async function crawlArticle(url) {
     }
     // Crawl WSJ    
     if (url.includes('wsj.com')) {
-      customLog('NOT CRAWLING WSJ, CANNOT BYBALL RATE LIMIT: ' + url, 'cyan');
-      // return await getArticleData(url, /ef4qpkp0/); 
-      return { title: null, content: null };
+      customLog('CRAWLING WSJ, CANNOT BYBALL RATE LIMIT: ' + url, 'cyan');
+      return await getArticleData(url, /ef4qpkp0/); 
+      // return { title: null, content: null };
     }
     // Crawl New York Times    
     if (url.includes('nytimes.com')) {
-      customLog('CRAWLING NYTIMES, PAYWALLED: ' + url, 'cyan');
+      customLog('CRAWLING NYTIMES, (For speed): ' + url, 'cyan');
       return await getArticleData(url, /meteredContent|css-1n0orw4/); 
       // return { title: null, content: null };
     }
     // Crawl YouTube Transcriptions
     if (url.includes('youtube.com')) {
-      customLog('CRAWLING YOUTUBE TRANSCRIPTION: ' + url, 'green');
+      customLog('CRAWLING YOUTUBE TRANSCRIPTION: ' + url, 'yellow');
+      // return { title: null, content: null};
       return await getYouTubeDetails(url);
     }
     
@@ -59,8 +60,11 @@ export async function crawlArticle(url) {
       customLog('CRAWLING URL: ' + url, 'green');    
       // For other websites, continue with JSDOM.fromURL
       const dom = await JSDOM.fromURL(url, { referrer: 'https://www.google.com/' });
+      console.log('close')
+      // console.log(dom)
       const reader = new Readability(dom.window.document);
       const article = reader.parse();
+      // console.log(article)
       
       // Extract the article title and content
       articleTitle = article.title;
@@ -101,6 +105,8 @@ export async function crawlArticle(url) {
           return { title: null, content: null }
         }
       }
+      
+      dom.window.close();
     } catch (error) {
       if (error.message.includes("Resource was not loaded. Status: 403")) {
         customLog('JSDOM Error: Resource was not loaded. Status: 403', 'yellow');
@@ -185,11 +191,26 @@ const getArticleData = async (url, selector) => {
       const elements = Array.from(dom.window.document.querySelectorAll('*'));
       const regex = new RegExp(selector, 'i');
       const selectedElements = elements.filter((element) => regex.test(element.className));
-      selectedElements.forEach((element) => {
-        console.log(element.className);
-        console.log(element.textContent);
-      });
-      const selectedContent = selectedElements.map((element) => element.textContent).join(' ');
+      let selectedContent;
+
+      
+      if (
+            !url.includes('axios.com')
+          ) 
+      {
+        // Multiple Crawl
+        selectedElements.forEach((element) => {
+          console.log(element.className);
+          console.log(element.textContent);
+          selectedContent = selectedElements.map((element) => element.textContent).join(' ');
+        });
+      } else {
+        // Single Crawl
+        const firstElement = selectedElements[0];
+        console.log(firstElement.className);
+        console.log(firstElement.textContent);
+        selectedContent = firstElement.textContent;
+      }
       customLog('Selected Content: ' + selectedContent, 'yellow');
       content = selectedContent;
     }
@@ -270,8 +291,9 @@ const getYouTubeDetails = async (url) => {
     // console.log(serializedHTML);
     if (match && match[1]) {
       description = match[1];
-      //.replace(/\\n/g, '').replace(/\\r/g, '').replace(/\\u/g, '').trim(); // Remove \n and \u sequences
-      console.log(description);
+      // console.log('Before '+description);
+      description = description.replace(/\\[nru]|\\u[\d]{4}|[\n\r]/g, '').trim();
+      // console.log('After '+description);
     } else {
       console.log('Description not found.');
     }
@@ -288,9 +310,11 @@ const getYouTubeDetails = async (url) => {
     // Remove hidden line breaks
     content = content.replace(/\r?\n|\r/g, ' ');
     content = `Video Transcription:\n${content}\n\nVideo Description:\n${description}`;
-    content = truncateContent(content, maxCharacters);
+    // content = truncateContent(content, maxCharacters);
     
     console.log(content);
+    dom.window.close();
+    
     return { title, content, favicon, image };
   } catch (error) {
     if (error instanceof YoutubeTranscriptError) {
@@ -327,7 +351,7 @@ const cleanWAPOArticleContent = (content) => {
   const paywallIndex = cleanedContent.indexOf('WpGet the full experience.Choose your plan');
   console.log('pw index: '+paywallIndex)
   if (paywallIndex !== -1) {
-    // cleanedContent = cleanedContent.substring(0, paywallIndex);
+    cleanedContent = cleanedContent.substring(0, paywallIndex);
   }
 
   return cleanedContent;

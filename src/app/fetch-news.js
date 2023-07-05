@@ -13,8 +13,10 @@ export async function fetchNews() {
   const excludeSources = ['Yahoo News','Yahoo Voices', 'The Weather Channel', 'New York Post', 'The Daily Beast', 'The Daily Mail', 'Daily Mail', 'Slate','The Guardian US','The Guardian','The Independent','69News WFMZ-TV'];
 
   for (const story of storyArray) {
+
     const storyId = story.id;
     const storyTitle = story.title;
+    
 
     customLog(`Story: ${storyId} - ${storyTitle}`,'lightBlue');
 
@@ -23,6 +25,9 @@ export async function fetchNews() {
     for (const snippet of snippets) {
       // console.log(snippet);
         try {
+          // if (story.id == null) {
+          //   continue;
+          // }
           const article = await crawlArticle(snippet.href);
           article.storyId = story.id;
           article.url = snippet.href;
@@ -35,7 +40,7 @@ export async function fetchNews() {
               !article.url.includes('/opinion/') &&
               !article.url.includes('/voices/') &&
               !article.url.includes('/ideas/')
-             ) 
+            ) 
           {
             // Filter out articles by title
             if (
@@ -51,7 +56,7 @@ export async function fetchNews() {
                 article.title.includes('Just a moment...') || 
                 article.title.includes('Access Denied') ||
                 article.title.includes('Attention Required! | Cloudflare')
-               ) 
+              ) 
             {
               continue;
             }
@@ -67,46 +72,46 @@ export async function fetchNews() {
           console.error('Error occurred while processing article:', error)
         }
     }
+
+    // console.log(storyArray);
+    // console.log(storyArticles);
+
+    composePrompts(storyArticles)
+
+    // Calculate Elapsed time
+    const endTime = new Date();
+    const elapsedTime = endTime - startTime; // in milliseconds
+    const elapsedSeconds = elapsedTime / 1000; // convert to seconds
+    const elapsedSecondsFixed = elapsedSeconds.toFixed(1); // round to 1 decimal place
+
+    const totalArticles = storyArticles.length;
+
+    setTimeout(() => {
+      const response = {
+        storyArray: storyArray.map(story => ({
+          id: story.id,
+          title: story.title,
+          dateUpdated: story.dateUpdated,
+          fullCoverageUrl: story.fullCoverageUrl,
+        })),
+        storyArticles: storyArticles.map(article => ({
+          storyId: article.storyId,
+          url: article.url,
+          title: article.title,
+          source: article.source,
+          bias: article.bias,
+          content: article.content ? article.content.substring(0, 280).trim().replace(/[^\w\s]*$/, '') + '...' : 'Article content is null.',
+          image: article.image,
+          favicon: article.favicon,
+        })),
+        totalArticles: totalArticles,
+        elapsedTime: elapsedSecondsFixed + ' seconds',
+        currentTime: new Date().toLocaleTimeString()
+      };
+    
+      console.log(JSON.stringify(response, null, 2));
+    }, 2000); 
   }
-
-  // console.log(storyArray);
-  // console.log(storyArticles);
-
-  composePrompts(storyArticles)
-
-  // Calculate Elapsed time
-  const endTime = new Date();
-  const elapsedTime = endTime - startTime; // in milliseconds
-  const elapsedSeconds = elapsedTime / 1000; // convert to seconds
-  const elapsedSecondsFixed = elapsedSeconds.toFixed(1); // round to 1 decimal place
-
-  const totalArticles = storyArticles.length;
-
-  setTimeout(() => {
-    const response = {
-      storyArray: storyArray.map(story => ({
-        id: story.id,
-        title: story.title,
-        dateUpdated: story.dateUpdated,
-        fullCoverageUrl: story.fullCoverageUrl,
-      })),
-      storyArticles: storyArticles.map(article => ({
-        storyId: article.storyId,
-        url: article.url,
-        title: article.title,
-        source: article.source,
-        bias: article.bias,
-        content: article.content ? article.content.substring(0, 280).trim().replace(/[^\w\s]*$/, '') + '...' : 'Article content is null.',
-        image: article.image,
-        favicon: article.favicon,
-      })),
-      totalArticles: totalArticles,
-      elapsedTime: elapsedSecondsFixed + ' seconds',
-      currentTime: new Date().toLocaleTimeString()
-    };
-  
-    console.log(JSON.stringify(response, null, 2));
-  }, 2000);
 
   return storyArticles;
 };

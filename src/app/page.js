@@ -43,7 +43,7 @@ export default function Home() {
                 )}
                 &nbsp;{article.source} {article.bias ? `- ${article.bias}` : '' }
               </p>
-              {article.content && <p style={{'maxHeight': '300px', 'marginBottom': '30px','overflow': 'scroll'}}>{article.content}</p>}
+              {article.content && <textarea style={{'maxHeight': '300px', 'marginBottom': '30px','overflow': 'scroll'}}>{article.content}</textarea>}
             </div>
           ))}
         </div>
