@@ -27,7 +27,7 @@ export async function fetchStories() {
   const heads = await news.headlines({ 
     country: 'us',
     language: 'en', 
-    n: 7
+    n: 5
   });
   
   // WORLD, BUSINESS, TECHNOLOLGY, ENTERTAINMENT, SPORTS, SCIENCE, HEALTH

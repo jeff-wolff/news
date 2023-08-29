@@ -953,7 +953,7 @@ export async function lookupBias(article) {
       'ZeroHedge': 'Lean Right',
   }
   const source = article.source.trim();
-  if (bias.hasOwnProperty(source)) {
+  if (Object.hasOwnProperty.call(bias, source)) {
     article.bias = bias[source]; // Add the bias to the article object
   }
 };
