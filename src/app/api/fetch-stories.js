@@ -1,26 +1,15 @@
 const { customLog } = require('./custom-log');
 const news = require('gnews');
-let puppeteer, browser;
-
-if (process.env.VERCEL_ENV == 'production') {
-  puppeteer = require('puppeteer-core'); 
-} else {
-  puppeteer = require('puppeteer'); 
-}
+const puppeteer = require('puppeteer'); 
+let browser;
 
 export async function fetchStories() {
   const stories = [];
 
   // Prepare browser for scraping titles
-  if (process.env.VERCEL_ENV == 'production') {
-    browser = await puppeteer.launch({
-      headless: 'new'
-    });
-  } else {
-    browser = await puppeteer.launch({
-      headless: 'new'
-    });
-  }
+  browser = await puppeteer.launch({
+    headless: 'new'
+  });
   const page = await browser.newPage();
 
   // Retrieve top breaking news stories on Google News (max n=38)

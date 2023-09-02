@@ -3,15 +3,9 @@ const { JSDOM } = require('jsdom');
 const { Readability } = require('@mozilla/readability');
 const { YoutubeTranscript, YoutubeTranscriptError } = require('youtube-transcript');
 const sanitizeHtml = require('sanitize-html');
+const puppeteer = require('puppeteer'); 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-let puppeteer;
-
-if (process.env.VERCEL_ENV == 'production') {
-  puppeteer = require('puppeteer-core'); 
-} else {
-  puppeteer = require('puppeteer'); 
-}
+let browser;
 
 const maxCharacters = 14000; // Maximum allowed character count per article
 
@@ -122,20 +116,12 @@ export async function crawlArticle(url) {
 // Helper function to crawl articles from specific websites that don't support JSDOM
 const getArticleData = async (url, selector) => {
   customLog('Trying Puppeteer to crawl..'+url, 'cyan');
-  let browser;
   
   try {
     
-    if (process.env.VERCEL_ENV == 'production') {
-      browser = await puppeteer.launch({
-        headless: 'false',
-      });
-    } else {
-      browser = await puppeteer.launch({
-        headless: 'false',
-      });
-    }
-
+    browser = await puppeteer.launch({
+      headless: 'false',
+    });
     const page = await browser.newPage();
     
     // await page.setUserAgent('Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)');
